@@ -1,0 +1,18 @@
+{
+  "language": "python",
+  "os": [
+    "linux"
+  ],
+  "script": [
+    "pip install .",
+    "pytest -v",
+    "pycodestyle tnz/*.py",
+    "python setup.py bdist_wheel"
+  ],
+  "python": [
+    "3.6",
+    "3.7",
+    "3.8",
+    "3.9"
+  ]
+}

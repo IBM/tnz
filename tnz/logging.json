@@ -1,0 +1,26 @@
+{
+    "formatters": {
+        "tnz_format": {
+            "format": "%(asctime)s %(message)s"
+        }
+    },
+    "handlers": {
+        "tnz_log": {
+            "class": "logging.FileHandler",
+            "encoding": "utf8",
+            "filename": "tnz.log",
+            "formatter": "tnz_format",
+            "mode": "w"
+        }
+    },
+    "loggers": {
+        "tnz": {
+            "handlers": [
+                "tnz_log"
+            ],
+            "level": "WARN",
+            "propagate": false
+        }
+    },
+    "version": 1
+}

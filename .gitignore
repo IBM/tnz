@@ -1,0 +1,12 @@
+bin/
+*.pyc
+dist
+build
+tnz.egg-info
+*.log
+
+_version.py
+
+# Vim files
+*~
+*.sw?
