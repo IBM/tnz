@@ -1,3 +1,7 @@
+[![Build Status](
+https://app.travis-ci.com/IBM/tnz.svg?branch=main
+)](https://app.travis-ci.com/IBM/tnz)
+
 # tnz
 
 Use a standard terminal emulator as a 3270 terminal interface. Write
