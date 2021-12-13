@@ -2704,7 +2704,7 @@ class Ati():
         if fwd:
             return mat.start() + 1
 
-        return len(scr) - mat.start() - len(value) + 1
+        return len(scr) - mat.end() + 1
 
     @staticmethod
     def __seconds(value):
