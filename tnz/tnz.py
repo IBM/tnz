@@ -987,7 +987,11 @@ class Tnz:
             return
 
         field_dc = self.rcba(self.plane_dc, faddr1, eaddr)
-        offset = len(field_dc.rstrip(b"\x00"))
+        if field_dc[-1] == 0x40:  # blank
+            offset = len(field_dc.rstrip(b"\x00\x40"))
+        else:
+            offset = len(field_dc.rstrip(b"\x00"))
+
         caddr = (faddr1+offset) % buffer_size
         if caddr == eaddr and not self.is_protected_attr(fattr):
             caddr = (caddr-1) % buffer_size
