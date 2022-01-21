@@ -2400,6 +2400,7 @@ HELP and HELP KEYS commands for more information.
                     self.rewrite_cursor = True
 
                 elif cstr in ("\x1b\x1b[D",  # Alt+LEFT
+                              "\x1bb",  # Alt+LEFT (Terminal.app)
                               "\x1b[1;3D"):  # Alt+LEFT (Windows)
                     _logger.debug("keyed Alt+Left")
 
@@ -2407,6 +2408,7 @@ HELP and HELP KEYS commands for more information.
                     self.rewrite_cursor = True
 
                 elif cstr in ("\x1b\x1b[C",  # Alt+RIGHT
+                              "\x1bf",  # Alt+RIGHT (Terminal.app)
                               "\x1b[1;3C"):  # Alt+RIGHT (Windows)
                     _logger.debug("keyed Alt+Right")
 
