@@ -2281,7 +2281,7 @@ HELP and HELP KEYS commands for more information.
                         else:
                             self.__key_data(tns, cstr)
 
-                elif cstr == "\r": 
+                elif cstr == "\r":
                     _logger.debug("keyed Enter")
 
                     if tns.pwait or tns.system_lock_wait:
