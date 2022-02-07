@@ -2021,4 +2021,6 @@ class Term():
         "\x1b[23;2~": "KEY_F(23)",
         "\x1b[24;2~": "KEY_F(24)",
         "\x1b[2;2~": "KEY_SIC",
+        # discovered in iTerm2
+        "\x1b[1;2F": "KEY_SEND",
     }
