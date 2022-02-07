@@ -2281,7 +2281,7 @@ HELP and HELP KEYS commands for more information.
                         else:
                             self.__key_data(tns, cstr)
 
-                elif cstr == "\n" or cstr == "\r":
+                elif cstr == "\r": 
                     _logger.debug("keyed Enter")
 
                     if tns.pwait or tns.system_lock_wait:
@@ -2290,6 +2290,11 @@ HELP and HELP KEYS commands for more information.
                     else:
                         tns.enter()
                         self.rewrite_keylock = True
+
+                elif cstr == "\n":
+                    _logger.debug("keyed Shift+Enter")
+
+                    tns.key_newline()
 
                 elif cstr == "\t":
                     _logger.debug("keyed Tab")
