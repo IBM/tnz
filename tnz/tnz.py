@@ -122,6 +122,7 @@ class Tnz:
         self.ddmsend = False  # allow host-initiated ind$file put
         self.__ddmtdat = ""
         self.ddmdata = None
+        self.ddmdict = {}
         self.__ddmdata = False
         self.__ddmopen = False
         self.__ddmrecnum = 0
@@ -2930,7 +2931,13 @@ class Tnz:
                 # unsolicited
                 if self.__ddmrecnum == 1:
                     self.__ddmtdat = ""
-                    data2 = data[:2]
+                    if self.__indsdict:
+                        if data.endswith(b"\x1a"):
+                            data = data[:-1]
+
+                        data = data.decode("iso8859-1")
+                        data = data.replace("\r\n", "\n")
+                        self.__ddmtdat = data
 
                 elif self.__ddmtdat:
                     self._log_warn("clearing ddmtdat for 2nd rec")
@@ -2945,8 +2952,9 @@ class Tnz:
                 self.__indsfile = None
                 self.__indstemp = False
                 indsdict = self.__indsdict
+                self.ddmdict = indsdict
                 if indsdict:
-                    self.__indsdict = None
+                    self.__indsdict = {}
                     cmd = indsdict.get("command", None)
                     nowait = indsdict.get("async", None)
                     try:
@@ -2971,6 +2979,11 @@ class Tnz:
                 self.__indsfile = None
 
             self.ddmdata = self.__ddmtdat
+            content_var = self.ddmdict.get("content_var")
+            if content_var:
+                self.ddmdict[content_var] = self.__ddmtdat
+                del self.ddmdict["content_var"]
+
             self.__ddmtdat = ""
 
     def _process_ddm_0xd04112(self, _, __, ___, zti=None):
