@@ -765,7 +765,7 @@ class Zti(cmd.Cmd):
             try:
                 shutil.copyfile(name, dest)
 
-            except BaseException:
+            except Exception:
                 traceback.print_exc()
 
         self.downloads.pop(0)
@@ -1169,7 +1169,7 @@ class Zti(cmd.Cmd):
         self.shell_mode()
         try:
             traceback.print_stack()
-        except BaseException:
+        except Exception:
             print("<stack trace unavailable>")
 
         intro = """
@@ -1361,7 +1361,7 @@ HELP KEYS commands for more information.
 
             try:
                 traceback.print_stack()
-            except BaseException:
+            except Exception:
                 pass
 
             intro = """
@@ -1584,7 +1584,7 @@ HELP and HELP KEYS commands for more information.
             self.__set_colors()
             self.__has_color = True
 
-        except BaseException:
+        except Exception:
             if self.__has_color:
                 raise
 
@@ -1985,7 +1985,7 @@ HELP and HELP KEYS commands for more information.
 
                 self.__color_setup()
 
-            except BaseException:
+            except Exception:
                 if self.stdscr:
                     self.__endwin()
                     self.stdscr = None
@@ -2174,7 +2174,7 @@ HELP and HELP KEYS commands for more information.
                     self.rewrite = True
                     try:
                         curses.resize_term(0, 0)  # hack for Windows
-                    except BaseException:
+                    except Exception:
                         pass
 
                     (maxy, maxx) = win.getmaxyx()
@@ -2804,7 +2804,7 @@ HELP and HELP KEYS commands for more information.
                     mouserr = False
                     try:
                         mid, mpx, mpy, mpz, mbstate = curses.getmouse()
-                    except BaseException:
+                    except Exception:
                         mouserr = True
 
                     if ((not mouserr and
@@ -3715,7 +3715,7 @@ def main():
     if not args.noztirc:
         try:
             zti.do_source(args.rcfile)
-        except BaseException:
+        except Exception:
             pass
 
     if args.host:

@@ -2647,7 +2647,7 @@ class Tnz:
                     self.__log_error("DDM Open File failed")
                     return
 
-                except BaseException:
+                except Exception:
                     self.__indstemp = False
                     self.__logger.exception("open file error")
 
@@ -2955,7 +2955,7 @@ class Tnz:
                                              stdout=None,
                                              stderr=None,
                                              close_fds=True)
-                    except BaseException:
+                    except Exception:
                         self.__logger.exception("command error")
 
             else:

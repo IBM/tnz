@@ -1362,7 +1362,7 @@ class Emulator(object):
         else:
             try:
                 ati, _ = self.__set_session()
-            except BaseException:
+            except Exception:
                 connected = False
 
         if connected:
