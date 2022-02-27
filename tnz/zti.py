@@ -182,7 +182,7 @@ class Zti(cmd.Cmd):
                 self.__shell_mode()
                 print("\nKeyboardInterrupt")
 
-            except Exception:
+            except BaseException:
                 self.postloop()
                 raise
 
