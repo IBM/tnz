@@ -1,0 +1,57 @@
+name: CI/CD
+
+on: push
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.6', '3.7', '3.8', '3.9' ]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        pip install wheel
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Lint
+      run: |
+        pycodestyle tnz/*.py
+
+    - name: Install tnz
+      run: |
+        pip install .
+
+    - name: Run tests
+      run: |
+        pytest
+
+  CD:
+    if: startsWith(github.ref, 'refs/tags')
+    needs: CI
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v2
+
+    - name: Install dependencies
+      run: |
+        pip install wheel build twine
+
+    - name: Build dist
+      run: |
+        python -m build --wheel --outdir dist/
+
+    - name: Publish 
+      env:
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        twine upload --non-interactive -u __token__ dist/*
