@@ -34,9 +34,11 @@ try:
         version=version[1:],  # git tag w/o 'v' prefix
         description="Telnet-3270 to Z tool and library",
         long_description=long_description,
-        url="https://github.com/ibm/tnz",
+        long_description_content_type="text/markdown",
+        url="https://github.com/IBM/tnz",
         author="Neil Johnson",
         author_email="najohnsn@us.ibm.com",
+        license="Apache-2.0",
         package_dir={"": "."},
         packages=["tnz"],
         package_data={"tnz": ["logging.json"]},
@@ -50,8 +52,9 @@ try:
             ]
         },
         project_urls={
-            "Bug Reports": "https://github.com/ibm/tnz/issues",
-            "Source": "https://github.com/ibm/tnz",
+            "Bug Reports": "https://github.com/IBM/tnz/issues",
+            "Source": "https://github.com/IBM/tnz",
+            "Wiki": "https://github.com/IBM/tnz/wiki",
         }
     )
 
