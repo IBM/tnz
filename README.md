@@ -1,6 +1,9 @@
 [![CI Status](
 https://github.com/IBM/tnz/workflows/CI/badge.svg
 )](https://github.com/IBM/tnz/actions/workflows/pipeline.yml)
+[![PyPi Status](
+https://img.shields.io/pypi/v/tnz.svg
+)](https://pypi.org/project/tnz)
 
 # tnz
 
