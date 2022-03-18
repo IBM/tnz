@@ -103,7 +103,6 @@ class Tnz:
         self.__waiting = False
         self.__wait_rv = None
         self._transport = None  # asyncio.Transport
-        self.__rec = []
         self.__pndrec = b""
         self.__eor = False
         self.__tn3270e = False
@@ -1964,122 +1963,84 @@ class Tnz:
 
     def _data_received(self, buff):
         zti = self.__zti
-        bcnt = len(buff)
-        cmd = []
-        buff = self.__work_buffer + buff[:bcnt]
-        bcnt += len(self.__work_buffer)
-        self.__work_buffer = b""
+        buff = self.__work_buffer + buff
+        byte_start = 0
+        subc_start = None
+        try:
+            for cmd_mat in self.__pat_cmd.finditer(buff):
+                cmd = cmd_mat[0]
+                cmd_byte = cmd[1]
+                if cmd_byte == 255:  # data byte 255
+                    continue
 
-        b_start = 0
-        b_start_data = 0
-        b_last = bcnt - 1
-        while b_start < bcnt:
-            pos_iac = buff.find(0xff, b_start, bcnt)  # find IAC
-            if pos_iac < 0:  # IAC not found
-                self.__log_info("RECV: IAC not found")
-                if self.__eor:
-                    self.__pndrec += buff[b_start_data:bcnt]
-                    self.__log_debug("RECV: %d bytes pending",
-                                     len(self.__pndrec))
+                if subc_start is not None:
+                    if cmd_byte == 240:  # SE
+                        self._process(buff[subc_start:cmd_mat.start()])
+                        byte_start = cmd_mat.end()
+                        subc_start = None
+
+                elif cmd_byte == 239 and self.__eor:  # EOR
+                    if self.__waiting:
+                        self.__wait_rv = True
+                        _wait_event.set()
+
+                    rec = self.__pndrec
+                    rec += buff[byte_start:cmd_mat.start()]
+                    rec = self.__pat_cmd.sub(self.__repl, rec)
+                    self.__pndrec = b""
+                    self.bytes_received += len(rec)
+                    byte_start = cmd_mat.end()
+                    try:
+                        self._proc3270ds(rec, zti=zti)
+
+                    except TnzError:
+                        self.__logger.exception("3270ds error")
+                        self.__log_error("Record: %s", rec.hex())
+                        self.seslost = sys.exc_info()
+                        if zti:
+                            raise
+
+                        import traceback
+                        traceback.print_exc()
+                        return byte_start
+
+                elif cmd_byte == 250:  # SB
+                    subc_start = cmd_mat.start()
+                    self._data_telnet(buff, byte_start, subc_start)
+                    byte_start = subc_start
+
                 else:
-                    self.__log_error("Unexpected data: %r",
-                                     buff[b_start, pos_iac])
+                    mat_start = cmd_mat.start()
+                    self._data_telnet(buff, byte_start, mat_start)
+                    byte_start = cmd_mat.end()
+                    self._process(cmd)
 
-                b_start = bcnt
-                b_start_data = bcnt
-                break
+            if not self.__eor:
+                mat = self.__pat_data.match(buff, byte_start)
+                if mat:
+                    byte_start = mat.end()
+                    self._data_telnet(buff, mat.start(), mat.end())
 
-            if pos_iac >= b_last:
-                # what follows IAC?
-                break
+        finally:
+            buff = buff[byte_start:]
+            self.__work_buffer = buff
+            if buff:
+                self.__log_info("RECV: %d byte(s) not processed",
+                                len(buff))
 
-            byte2 = buff[pos_iac+1]
-            if byte2 == 239:  # if EOR (end of record for tn3270)
-                data = self.__pndrec + buff[b_start_data:pos_iac]
-                self.__pndrec = b""
-                data = data.replace(b"\xff\xff", b"\xff")  # 0xff=IAC
-                self.__rec.append(data)
-                b_start = pos_iac + 2
-                b_start_data = b_start
-                continue
+        return byte_start
 
-            if byte2 == 0xff:  # escaped 0xff (IAC) part of data
-                b_start = pos_iac + 2
-                continue
+    def _data_telnet(self, buff, start, stop):
+        if start >= stop:
+            return
 
-            if pos_iac != b_start_data:  # some data before IAC
-                self._log_warn("RECV: Data interrupted by command")
-                if self.__eor:
-                    self.__pndrec += buff[b_start_data:pos_iac]
-                    self._log_warn("RECV: %d bytes pending",
-                                   len(self.__pndrec))
-                else:
-                    self.__log_error("Unexpected data: %r",
-                                     buff[b_start_data, pos_iac])
+        if not self.__eor:
+            self.__log_error("Unexpected data: %r", buff[start:stop])
+            return
 
-            if 251 <= byte2 <= 254:  # //WILL or WON'T or DO or DON'T
-                cmd_end = pos_iac + 3
-                if cmd_end > bcnt:
-                    self._log_warn("RECV: Command %02x incomplete",
-                                   byte2)
-                    b_start_data = bcnt
-                    break
-
-                cmd.append(buff[pos_iac:cmd_end])
-                b_start = pos_iac + 3
-                b_start_data = b_start
-                continue
-
-            if byte2 == 250:  # if SB (subcommand begin)
-                pos_se = buff.find(b"\xff\xf0",  # IAC SE
-                                   pos_iac+2, bcnt)
-                if pos_se < 0:  # if subcommand end not found
-                    self._log_warn("RECV: Subcommand %r incomplete",
-                                   buff[pos_iac:bcnt])
-                    b_start_data = bcnt
-                    break
-
-                cmd.append(buff[b_start:pos_se])
-                b_start = pos_se+2
-                b_start_data = b_start
-                continue
-
-            # single-byte command (IAC + one byte)
-
-            b_start = pos_iac + 2
-            b_start_data = b_start
-            cmd.append(buff[pos_iac:b_start])
-
-        if b_start < bcnt:
-            rcnt = bcnt - b_start  # remaining bytes
-            self._log_warn("RECV: %d byte(s) not processed", rcnt)
-            self.__work_buffer = buff[b_start:bcnt]
-
-        for cmd1 in cmd:
-            self._process(cmd1)
-
-        rec = self.__rec
-        if self.__waiting and rec:
-            self.__wait_rv = True
-            _wait_event.set()
-
-        while rec:
-            rec_bytes = rec.pop(0)
-            try:
-                self._proc3270ds(rec_bytes, zti=zti)
-
-            except TnzError:
-                self.__logger.exception("3270 command/order error")
-                self.__log_error("Record: %s", rec_bytes.hex())
-                self.seslost = sys.exc_info()
-                if zti:
-                    raise
-
-                import traceback
-                traceback.print_exc()
-                break
-
-        return bcnt
+        self.__pndrec += buff[start:stop]
+        self.__log_debug("RECV: %d bytes pending",
+                         len(self.__pndrec))
 
     def _log_warn(self, *args, **kwargs):
         return self.__log(logging.WARN, *args, **kwargs)
@@ -4701,6 +4662,17 @@ class Tnz:
         if len2:
             dst[:len2] = src[endd:endidx]
 
+    # Private static methods
+
+    @staticmethod
+    def __repl(mat):
+        """If input cmd is xff, return xff. Else return null string.
+        """
+        if mat[0][1] == 255:  # data byte 255
+            return b"\xff"
+
+        return b""
+
     # Readonly properties
 
     @property
@@ -4798,6 +4770,9 @@ class Tnz:
     __patbs = re.compile(b"(.)\\1*")
     __patord = re.compile(b"[\x05\x08\x11\x12\x13\x1d\x28\x29\x2c\x3c]")
     __pat0n0s = re.compile(b"[^\x00]\x00+")
+    __pat_cmd = re.compile(b"\xff(?:[\x00-\xfa\xff]|..)",
+                           flags=re.DOTALL)
+    __pat_data = re.compile(b"(?:[\x00-\xfe]|\xff\xff)+")
 
     class __ReadState(enum.Enum):
         """3270 DS READ STATE
