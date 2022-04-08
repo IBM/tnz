@@ -23,16 +23,13 @@ stream. The ati module allows for easier 3270 terminal automation.
 
 ## Installing
 
-Python 3.6 or later is required. Use pip to install the latest tnz:
-```console
-pip install git+ssh://git@github.com/ibm/tnz
-```
-
+Python 3.6 or later is required.
 Although not required, on platforms other than z/OS, it is suggested
 you also install the [ebcdic](https://pypi.org/project/ebcdic)
-package from PyPI:
+package from PyPI
+Use pip to install the latest tnz:
 ```console
-pip install ebcdic
+pip install ebcdic tnz
 ```
 
 ## Usage
@@ -46,6 +43,9 @@ emulator:
 ```console
 zti
 ```
+
+If your path is not set up for running the installed zti console script,
+you can run zti with `python -m tnz.zti` instead.
 
 Starting `zti` takes you into the zti command line interface shell.
 Key tab for command completion, up/down for command history.
