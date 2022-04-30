@@ -48,7 +48,12 @@ import threading
 import time
 import traceback
 
-from importlib.metadata import entry_points
+try:
+  # available in python 3.8 and later
+  from importlib.metadata import entry_points
+except ImportError:
+  # try importing compatibility module if not found
+  from importlib_metadata import entry_points
 
 from . import _sigx as sigx
 from ._termlib import Term as curses
