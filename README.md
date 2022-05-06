@@ -4,6 +4,9 @@ https://github.com/IBM/tnz/workflows/CI/badge.svg
 [![PyPi Status](
 https://img.shields.io/pypi/v/tnz.svg
 )](https://pypi.org/project/tnz)
+[![PyPi Downloads](
+https://img.shields.io/pypi/dm/tnz
+)](https://pypi.org/project/tnz)
 
 # tnz
 
