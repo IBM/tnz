@@ -3614,7 +3614,7 @@ class Tnz:
         row += rowcnt
         self.__readlines_row = row
         if (keep_all or row >= maxrow) and self.readlines_pa2:
-            if not self.__indsfile:  # if get/put not in progress
+            if not self.__ddmopen:  # if get/put not in progress
                 self.pa2()
 
     def __append_char_bytes(self, blst, saddr, eaddr):
