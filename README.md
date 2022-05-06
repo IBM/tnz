@@ -29,7 +29,7 @@ stream. The ati module allows for easier 3270 terminal automation.
 Python 3.6 or later is required.
 Although not required, on platforms other than z/OS, it is suggested
 you also install the [ebcdic](https://pypi.org/project/ebcdic)
-package from PyPI
+package from PyPI.
 Use pip to install the latest tnz:
 ```console
 pip install ebcdic tnz
