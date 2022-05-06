@@ -48,8 +48,6 @@ import threading
 import time
 import traceback
 
-from importlib.metadata import entry_points
-
 from . import _sigx as sigx
 from ._termlib import Term as curses
 from ._util import session_ps_14bit
@@ -158,57 +156,7 @@ class Zti(cmd.Cmd):
         if self._zti is None:
             Zti._zti = self
 
-        plugins = []
-        zti_plugins = entry_points().get("zti.commands", [])
-        for entry in zti_plugins:
-            name = entry.name
-            plugins.append(name)
-
-            def do_plugin(arg, entry=entry, **kwargs):
-                plugin = entry.load()
-                self.__bg_wait_end()
-                tb_count = self.__tb_count
-                plugin_goto = self.__plugin_goto
-                self.__plugin_goto = ""
-                kwargs.update(**self.__plugin_kwargs)
-                self.__plugin_kwargs.clear()
-                try:
-                    try:
-                        self.__tb_count = len(traceback.extract_stack())
-                    except Exception:
-                        pass
-
-                    with ati.ati.new_program(share_sessions=True):
-                        plugin(arg, **kwargs)
-
-                except _ZtiAbort:
-                    pass
-
-                except Exception:
-                    ati.say(f"{name} failed")
-                    self.print_stack(exc=True)
-
-                else:
-                    if plugin_goto:
-                        self.cmdqueue.append(f"GOTO {plugin_goto}\n")
-
-                finally:
-                    self.__tb_count = tb_count
-
-                sessions = ati.ati.sessions.split()
-                if sessions:
-                    if ati.ati.session not in sessions:
-                        ati.ati.session = sessions[0]
-
-            def help_plugin(entry=entry):
-                plugin = entry.load()
-                self.__shell_mode()
-                plugin("--help")
-
-            setattr(self, f"do_{name}", do_plugin)
-            setattr(self, f"help_{name}", help_plugin)
-
-        self.plugins = " ".join(plugins)
+        self.__install_plugins()
 
     # Methods
 
@@ -1971,6 +1919,65 @@ HELP and HELP KEYS commands for more information.
             sigx.del_handler(tnz.wakeup_wait)
 
         curses.endwin()
+
+    def __install_plugins(self):
+        try:
+            from importlib.metadata import entry_points
+        except ImportError:  # must be Python <3.8
+            self.plugins = ""
+            return
+
+        plugins = []
+        zti_plugins = entry_points().get("zti.commands", [])
+        for entry in zti_plugins:
+            name = entry.name
+            plugins.append(name)
+
+            def do_plugin(arg, entry=entry, **kwargs):
+                plugin = entry.load()
+                self.__bg_wait_end()
+                tb_count = self.__tb_count
+                plugin_goto = self.__plugin_goto
+                self.__plugin_goto = ""
+                kwargs.update(**self.__plugin_kwargs)
+                self.__plugin_kwargs.clear()
+                try:
+                    try:
+                        self.__tb_count = len(traceback.extract_stack())
+                    except Exception:
+                        pass
+
+                    with ati.ati.new_program(share_sessions=True):
+                        plugin(arg, **kwargs)
+
+                except _ZtiAbort:
+                    pass
+
+                except Exception:
+                    ati.say(f"{name} failed")
+                    self.print_stack(exc=True)
+
+                else:
+                    if plugin_goto:
+                        self.cmdqueue.append(f"GOTO {plugin_goto}\n")
+
+                finally:
+                    self.__tb_count = tb_count
+
+                sessions = ati.ati.sessions.split()
+                if sessions:
+                    if ati.ati.session not in sessions:
+                        ati.ati.session = sessions[0]
+
+            def help_plugin(entry=entry):
+                plugin = entry.load()
+                self.__shell_mode()
+                plugin("--help")
+
+            setattr(self, f"do_{name}", do_plugin)
+            setattr(self, f"help_{name}", help_plugin)
+
+        self.plugins = " ".join(plugins)
 
     def __key_data(self, tns, data):
         try:
