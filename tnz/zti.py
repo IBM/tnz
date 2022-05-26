@@ -2134,6 +2134,10 @@ HELP and HELP KEYS commands for more information.
 
         try:
             while True:
+                if self.cmdqueue:  # plugin added cmd to process?
+                    self.shell_mode()
+                    return 1  # timeout?
+
                 cstr = self.__tty_read(win, 0, refresh=refresh)
                 refresh = None
                 if (cstr == "" and  # session change
@@ -2184,6 +2188,10 @@ HELP and HELP KEYS commands for more information.
                             _logger.debug("before win.move")
                             win.move(ypos+currow-1, xpos+curcol-1)
                             _logger.debug("after win.move")
+
+                    if self.cmdqueue:  # plugin added cmd to process?
+                        self.shell_mode()
+                        return 1  # timeout?
 
                     cstr = self.__tty_read(win, tout)
                     if waitc in (_WAIT_KEYLOCK, _WAIT_SCREEN):
