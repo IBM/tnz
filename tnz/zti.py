@@ -34,6 +34,20 @@ Copyright 2021 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
+if __name__ == "__main__":
+    # We want to support starting by 'python -m tnz.zti', but that can
+    # generally be problematic because the zti module is imported as
+    # __main__. Subsequent imports of tnz.zti will import as tnz.zti -
+    # treating it as a different module. That causes a __main__.Zti and
+    # a tnz.zti.Zti class. Since there is the intention for there to be
+    # a single instance of Zti static data, it is undesirable to have
+    # both instance of Zti. Route the the main in tnz.zti (not __main__)
+    # to use the one desired instance of the Zti class. Consider
+    # eventually dropping support for 'python -m tnz.zti' so that we can
+    # avoid this.
+    from tnz import zti
+    raise SystemExit(zti.main())
+
 import atexit
 import cmd
 import ctypes
@@ -3851,6 +3865,3 @@ _WAIT_NOT_HOLDING = 9
 
 _osname = platform.system()
 _logger = logging.getLogger("tnz.zti")
-
-if __name__ == "__main__":
-    main()
