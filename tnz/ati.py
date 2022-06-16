@@ -3380,8 +3380,11 @@ class Ati():
 
         logger = self.__gv["logger"]
         if uval == "CAPTURE":
-            if not self.__sescheck():
-                logger.critical("\n"+self.__capture(headfoot=False))
+            # The traditional ATI behavior is to 1st check for SESLOST.
+            # But it may be the case that capture could have debug info.
+            # So, we make sure that we first capture as requested.
+            logger.critical("\n"+self.__capture(headfoot=False))
+            self.__sescheck()
 
         else:
             # ERROR    messages are logged at the WARNING  level
