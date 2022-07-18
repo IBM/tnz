@@ -127,6 +127,7 @@ class Tnz:
         self.__ddmrecnum = 0
         self.__ddmascii = False
         self.__ddmmsg = None
+        self.__ddmerr = None
         self.lastcmd = None
         self.__ddmfile = None
         self.__ddmupload = False
@@ -658,6 +659,7 @@ class Tnz:
                 self.__log_debug("parms=%r", parms)
 
         self.__ddmmsg = None
+        self.__ddmerr = None
 
         try:
             self.__indsenc = encoding
@@ -1451,6 +1453,7 @@ class Tnz:
                 self.__log_debug("parms=%r", parms)
 
         self.__ddmmsg = None
+        self.__ddmerr = None
 
         try:
             self.__indsenc = encoding
@@ -1468,6 +1471,10 @@ class Tnz:
 
                 while (not self.__ddmmsg and not self.seslost):
                     self.wait(3)  # query reply, command acknowledge
+
+                if self.__ddmerr:
+                    raise TnzTransferError(self.__ddmerr)
+
         finally:
             self.__log_debug("clearing __indsfile")
             self.__indsfile = None
@@ -2502,6 +2509,22 @@ class Tnz:
 
         self.__log_debug(" %d byte(s) of data @ %r -> %r",
                          datalen, oldadd, self.bufadd)
+
+        # Sometimes get CaamTRANS99
+        # Host program error code 00     3276: file transfer canceled$
+        # during a file transfer without any DDM structured field other
+        # than a DDM Open. Experience has shown that the appropriate
+        # response to this error message is Enter.
+
+        if self.__ddmopen and not self.system_lock_wait:
+            text = self.scrstr(oldadd, self.bufadd)
+            if "file transfer" in text.lower():
+                self._log_warn("DDM Error: %r", text)
+                self.__ddmopen = False
+                self.__ddmerr = text
+                self.__ddmmsg = text
+                self.send_aid(0x7d, short=True)  # AID_ENTER
+
         if zti:
             # Use force=True to indicate that the data that was just
             # updated may have removed a field attribute. It also
@@ -4800,6 +4823,11 @@ class TnzError(RuntimeError):
 
 class TnzTerminalError(TnzError):
     """May be related to terminal characteristics.
+    """
+
+
+class TnzTransferError(TnzError):
+    """Error processing file transfer.
     """
 
 
