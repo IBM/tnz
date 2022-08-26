@@ -58,13 +58,11 @@ The `goto` command takes you to a full screen 3270 interface. When
 space is available in the terminal screen/window, a status line is
 provided as well as a session selector.
 
-The basic syntax of the initial `goto` command is: 
+The basic syntax `goto` is: 
 
 ```
-goto fully-qualified-host-name [port]
+goto fully-qualified-host-name[:port]
 ```
-
-If no port is specified, port 992, signifing to use TLS, is used.
 
 ![screenshot](https://github.com/IBM/tnz/blob/main/png/zti-host1.png?raw=true "3270 full screen")
 
