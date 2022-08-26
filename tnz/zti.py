@@ -891,7 +891,7 @@ class Zti(cmd.Cmd):
         print(f" SESSION_DEVICE_TYPE={tns.terminal_type}")
 
         if tns.alt:
-            print(" Alternate code page IBM-"+str(tns.cp_01))
+            print(" Alternate code page IBM-"+str(tns.cp_F1))
         else:
             print(" Alternate code page not supported")
 
