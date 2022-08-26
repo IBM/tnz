@@ -218,19 +218,19 @@ class Tnz:
 
         self.codec_info = {}
         self.encoding = "cp037"
-        self.encoding = "cp037", 1
+        self.encoding = "cp037", 0xf1
 
         self.alt = 0  # No support for GE (default)
         if sys.stdout.isatty():
             if str(sys.stdout.encoding).upper().startswith("UTF"):
                 from . import cp310 as _
-                self.encoding = "cp310", 1
+                self.encoding = "cp310", 0xf1
         else:
             import locale
             preferredencoding = locale.getpreferredencoding()
             if preferredencoding.upper().startswith("UTF"):
                 from . import cp310 as _
-                self.encoding = "cp310", 1
+                self.encoding = "cp310", 0xf1
 
         if name:
             self.name = name
@@ -3097,7 +3097,7 @@ class Tnz:
         self.plane_dc[addr1] = ge_byte
         self.plane_fa[addr1] = 0
         self.plane_eh[addr1] = self.__proc_eh
-        self.plane_cs[addr1] = 1
+        self.plane_cs[addr1] = 0xf1
         self.plane_fg[addr1] = self.__proc_fg
         self.plane_bg[addr1] = self.__proc_bg
 
@@ -3309,7 +3309,7 @@ class Tnz:
         return_value = start + 4
         data_byte = order[start+3]
         if data_byte == 0x08:  # if GE (Graphic Escape)
-            cs_attr = 1
+            cs_attr = 0xf1
             data_byte = order[return_value]
             getxt = "GE "
             return_value += 1
@@ -3655,7 +3655,7 @@ class Tnz:
             if cii == 0:
                 blst.append(rcba(plane_dc, addr0, addr1))
 
-            elif cii == 1:
+            elif cii == 0xf1:
                 for addr2 in self.__range_addr(addr0, addr1):
                     blst.append(b"\x08")  # GE (Graphic Escape)
                     blst.append(plane_dc[addr2:addr2+1])
@@ -4157,8 +4157,8 @@ class Tnz:
 
             # CGCSGID made up of 2-byte chararacter set number followed
             # by 2-byte code page number.
-            sfb += (self.cs_01).to_bytes(2, byteorder="big")
-            sfb += (self.cp_01).to_bytes(2, byteorder="big")
+            sfb += (self.cs_F1).to_bytes(2, byteorder="big")
+            sfb += (self.cp_F1).to_bytes(2, byteorder="big")
 
         # End of Character Sets)
         sfb = b"\x81"+sfb  # Query Reply
@@ -4751,14 +4751,14 @@ class Tnz:
             self.cs_00 = 697  # FIXME how do we determine?
             self.cp_00 = code_page
 
-        elif idx == 1:
+        elif idx == 0xf1:
             if code_page == 310:
-                self.alt = 1  # Support GE for char set ID 01
-                self.cs_01 = 963
+                self.alt = 1  # Support GE for char set ID F1
+                self.cs_F1 = 963
             else:
-                self.cs_01 = 697  # FIXME how do we determine?
+                self.cs_F1 = 697  # FIXME how do we determine?
 
-            self.cp_01 = code_page
+            self.cp_F1 = code_page
 
     # Class data
 
