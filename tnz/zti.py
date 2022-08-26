@@ -2940,12 +2940,6 @@ HELP and HELP KEYS commands for more information.
                                                             xpos+1)
                                     self.rewrite_cursor = True
 
-                            elif tns.is_pen_detectable(addr):
-                                # right action ?
-                                tns.set_cursor_position(ypos+1, xpos+1)
-                                tns.enter()
-                                self.rewrite_keylock = True
-                                self.rewrite_cursor = True
                             else:
                                 tns.set_cursor_position(ypos+1, xpos+1)
                                 self.rewrite_cursor = True
