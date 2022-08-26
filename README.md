@@ -32,7 +32,7 @@ you also install the [ebcdic](https://pypi.org/project/ebcdic)
 package from PyPI.
 Use pip to install the latest tnz:
 ```console
-pip install ebcdic tnz
+pip3 install ebcdic tnz
 ```
 
 ## Usage
@@ -57,6 +57,15 @@ Key tab for command completion, up/down for command history.
 The `goto` command takes you to a full screen 3270 interface. When
 space is available in the terminal screen/window, a status line is
 provided as well as a session selector.
+
+The basic syntax of the initial `goto` command is: 
+
+```
+goto fully-qualified-host-name [port]
+```
+
+If no port is specified, port 992, signifing to use TLS, is used.
+
 ![screenshot](https://github.com/IBM/tnz/blob/main/png/zti-host1.png?raw=true "3270 full screen")
 
 In Windows, the Lucida Console font works well with graphic character
@@ -116,7 +125,9 @@ fairly good at connecting like they are supposed to.
 
 
 ## Documentation
-See docstrings in source code.
+More documentation, including [Colors](https://github.com/IBM/tnz/wiki/Colors), [Screen Size](https://github.com/IBM/tnz/wiki/Screen-Sizing), and Security can be found in the [tnz Wiki](https://github.com/IBM/tnz/wiki)
+
+For additional details, see docstrings in source code.
 
 ## Contributing
 See [CONTRIBUTING.md](https://github.com/IBM/tnz/blob/main/CONTRIBUTING.md).
