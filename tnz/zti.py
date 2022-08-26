@@ -55,7 +55,6 @@ import logging
 import os
 import platform
 import signal
-import socket
 import sys
 import tempfile
 import threading
@@ -511,12 +510,6 @@ class Zti(cmd.Cmd):
                 sesname = parts[0]
                 port = parts[1]
 
-            if "." not in hostname:
-                fqdn = socket.getfqdn()
-                fqdn = fqdn.split(".")
-                if len(fqdn) > 1:
-                    hostname += "."+".".join(fqdn[1:])
-
             if "." in hostname:
                 parts = hostname.split(".", 1)
                 sesname = parts[0]
@@ -592,12 +585,6 @@ class Zti(cmd.Cmd):
                 parts = hostname.split(":", 1)
                 hostname = parts[0]
                 port = parts[1]
-
-            if "." not in hostname:
-                fqdn = socket.getfqdn()
-                fqdn = fqdn.split(".")
-                if len(fqdn) > 1:
-                    hostname += "."+".".join(fqdn[1:])
 
             if port is not None:
                 oldport = ati.ati["SESSION_PORT"]
