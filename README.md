@@ -58,7 +58,7 @@ The `goto` command takes you to a full screen 3270 interface. When
 space is available in the terminal screen/window, a status line is
 provided as well as a session selector.
 
-The basic syntax `goto` is: 
+The basic syntax of `goto` is: 
 
 ```
 goto fully-qualified-host-name[:port]
