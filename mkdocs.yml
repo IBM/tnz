@@ -21,15 +21,8 @@ theme:
 # Plugins
 plugins:
   - search
-  - git-revision-date-localized
-  - git-authors
   - minify:
       minify_html: true
-  - awesome-pages:
-      filename: .pages
-      collapse_single_pages: true
-      strict: false
-  - macros
 
 # Markdown extensions
 markdown_extensions:
