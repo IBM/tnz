@@ -30,7 +30,7 @@ Environment variables used:
     ZTI_TITLE
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021 IBM Inc. All Rights Reserved.
+Copyright 2021, 2022 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     # treating it as a different module. That causes a __main__.Zti and
     # a tnz.zti.Zti class. Since there is the intention for there to be
     # a single instance of Zti static data, it is undesirable to have
-    # both instance of Zti. Route the the main in tnz.zti (not __main__)
+    # both instance of Zti. Route to the main in tnz.zti (not __main__)
     # to use the one desired instance of the Zti class. Consider
     # eventually dropping support for 'python -m tnz.zti' so that we can
     # avoid this.
@@ -424,228 +424,138 @@ class Zti(cmd.Cmd):
     def do_goto(self, arg):
         """Command to go to a session in full-screen.
 
-        This is modelled after the ATI GOTO interactive trace
-        command. GOTO suspends execution and transfers control to the
-        indicated session. If no session is supplied, the active
-        session is used. If the selected session does not exist, a
-        warning is issued. ATI execution resumes upon returning
-        (through use of hot-key, disconnection, logoff, etc.). GOTO
-        ? will show all sessions under the parent ID.
+        GOTO transfers control to the indicated session. If no
+        session is supplied, the active session is used. If no
+        session is supplied and no session exists, the command will
+        be processed as "goto a".
 
-        This is also modelled after the ATI GOTO EXEC that is often
-        used with the ATI Session Manager:
-
-        <TODO need syntax diagram>
-
-        session
-            The name of a session to which control is transferred.
-
-        userid
-            A user ID on the same node as the current node. The
-            session name is simply userid.
-
-        userid AT node
-            Information by which the session name is hashed. The
-            session name is made by concatenating the last five
-            characters of userid, an = sign, and the sixth and
-            seventh characters of node. For example, MICHAELG AT
-            STLVM3 becomes HAELG=3, and RONB AT STLVM1 becomes
-            RONB=1.
-
-        nickname
-            A nickname from a NAMES file on the A-disk where a user
-            ID and node are stored that specify the session to which
-            control is to be transferred.
+        Usage:
+            goto [? | name | sesname hostname[:port]]
 
         ?
             Lists the available current session names.
 
-        DROP
-            Disconnects a session. See DROP command.
+        name
+            The name of an existing session to which control is
+            transferred. If no existing session exists and
+            SESSION_HOST is set, a new session is established with
+            that host. If SESSION_HOST is NOT set, a new session is
+            established using name as the hostname and the first part
+            of name as the sesname.
 
-        INIT
-            Initiated a session (brings up a new one).
+        sesname
+            The name of a session to which control is transferred.
+            Each session has a unique name.
 
-        QUIET
-            Suppresses informational messages.
+        hostname[:port]
+            The hostname (and optional port) to use to establish a
+            new session.
 
-        RENAME
-            Changes the name of the current session to the session
-            name specified. See RENAME command.
-
-        This is NOT modelled after the ATI GOTO statement.
+        Note: This is modelled after the ATI GOTO interactive trace
+        command and the ATI GOTO EXEC. It is NOT modelled after the
+        ATI GOTO statement.
         """
         self.__bg_wait_end()
-
-        self.__downcnt = len(self.downloads)
         sessions = ati.ati.sessions
-        session = ati.ati.session
 
-        oldsize = ati.ati["SESSION_PS_SIZE"]
-        newsize = oldsize
-
-        if arg == "" and sessions == "":
-
-            ati.ati.session = "A"
-            session = "A"
-
-        elif arg == "":
-
-            ati.ati.session = session
-
-        elif arg == "?":
-
+        if arg == "?":
             print(sessions)
             return
 
-        elif rexx.words(arg) == 1:
+        self.__downcnt = len(self.downloads)
+        new_session = None
 
-            port = None
-            hostname = arg
-            sesname = arg
+        if not arg and not sessions:
+            new_session = "A"
+            hostname = os.getenv("SESSION_HOST", None)
+            hostname = ati.ati["SESSION_HOST"] or hostname
 
-            if ":" in arg:
-                parts = arg.split(":", 1)
-                hostname = parts[0]
-                sesname = parts[0]
-                port = parts[1]
+        elif not arg:
+            ati.ati.session = ati.ati.session
 
-            if "." in hostname:
-                parts = hostname.split(".", 1)
-                sesname = parts[0]
-
-            if sesname != arg:
-                basename = sesname
-                sesname = sesname.upper()
-                i = 1
-                while " "+sesname+" " in " "+sessions+" ":
-                    sesname = basename+"~"+str(i)
-                    i += 1
-
-            if port is not None:
-                oldport = ati.ati["SESSION_PORT"]
-                if oldport != port:
-                    ati.set("SESSION_PORT", port)
-
-            session_host = ati.ati["SESSION_HOST"]
-            if session_host is None or sesname != arg:
-                ati.set("SESSION_HOST", hostname)
-
-            if not oldsize:
-                if os.environ.get("SESSION_PS_SIZE", "") == "MAX":
-                    (columns, lines) = os.get_terminal_size()
-                    lines -= 4
-                    columns = min(columns - 17, 160)
-                    lines, columns = session_ps_14bit(lines, columns)
-                    newsize = f"{lines}x{columns}"
-                    ati.set("SESSION_PS_SIZE", newsize)
-                elif os.environ.get("SESSION_PS_SIZE", "") == "MAX255":
-                    (columns, lines) = os.get_terminal_size()
-                    lines -= 4
-                    columns = max(columns - 17, 255)
-                    lines, columns = session_ps_14bit(lines, columns)
-                    newsize = f"{lines}x{columns}"
-                    ati.set("SESSION_PS_SIZE", newsize)
-                elif os.environ.get("SESSION_PS_SIZE", "") == "FULL":
-                    (columns, lines) = os.get_terminal_size()
-                    columns = min(columns, 160)  # 160 for ispf
-                    lines, columns = session_ps_14bit(lines, columns)
-                    newsize = f"{lines}x{columns}"
-                    ati.set("SESSION_PS_SIZE", newsize)
-                elif os.environ.get("SESSION_PS_SIZE", "") == "FULL255":
-                    (columns, lines) = os.get_terminal_size()
-                    columns = min(columns, 255)
-                    lines, columns = session_ps_14bit(lines, columns)
-                    newsize = f"{lines}x{columns}"
-                    ati.set("SESSION_PS_SIZE", newsize)
-
-            ati.ati.session = sesname
-            if self.single_session and ati.ati.rc == 0:
-                if ati.ati.session != ati.ati.sessions:
-                    self.single_session = False
-
-            if session_host is None:
-                ati.drop("SESSION_HOST")
-            elif sesname != arg:
-                ati.set("SESSION_HOST", session_host)
-
-            if port is not None:
-                if oldport != port:
-                    if oldport is None:
-                        ati.drop("SESSION_PORT")
-                    else:
-                        ati.set("SESSION_PORT", oldport)
         else:
+            args = arg.split(maxsplit=1)
+            sesname = args[0]
+            if sesname.upper() in sessions.split():
+                ati.ati.session = sesname
 
+            else:
+                new_session = sesname
+                hostname = args[-1]
+                if len(args) == 1:
+                    hostname = os.getenv("SESSION_HOST", None)
+                    hostname = ati.ati["SESSION_HOST"] or hostname
+                    if not hostname:
+                        hostname = sesname
+                        new_session = sesname.split(".", maxsplit=1)[0]
+                        if new_session.upper() in sessions.split():
+                            new_session = None
+                            ati.ati.session = sesname
+
+        if new_session:
             port = None
-            hostname = rexx.subword(arg, 2)
-            sesname = rexx.word(arg, 1)
-
-            if ":" in hostname:
-                parts = hostname.split(":", 1)
-                hostname = parts[0]
-                port = parts[1]
-
-            if port is not None:
+            if hostname and ":" in hostname:
+                hostname, port = hostname.split(":", maxsplit=1)
                 oldport = ati.ati["SESSION_PORT"]
                 if oldport != port:
                     ati.set("SESSION_PORT", port)
 
             oldhost = ati.ati["SESSION_HOST"]
-            if oldhost != hostname:
+            if hostname and oldhost != hostname:
                 ati.set("SESSION_HOST", hostname)
 
+            oldsize = ati.ati["SESSION_PS_SIZE"]
+            newsize = oldsize
             if not oldsize:
-                if os.environ.get("SESSION_PS_SIZE", "") == "MAX":
+                if os.getenv("SESSION_PS_SIZE") == "MAX":
                     (columns, lines) = os.get_terminal_size()
                     lines -= 4
                     columns = min(columns - 17, 160)
                     lines, columns = session_ps_14bit(lines, columns)
                     newsize = f"{lines}x{columns}"
                     ati.set("SESSION_PS_SIZE", newsize)
-                elif os.environ.get("SESSION_PS_SIZE", "") == "MAX255":
+                elif os.getenv("SESSION_PS_SIZE") == "MAX255":
                     (columns, lines) = os.get_terminal_size()
                     lines -= 4
                     columns = max(columns - 17, 255)
                     lines, columns = session_ps_14bit(lines, columns)
                     newsize = f"{lines}x{columns}"
                     ati.set("SESSION_PS_SIZE", newsize)
-                elif os.environ.get("SESSION_PS_SIZE", "") == "FULL":
+                elif os.getenv("SESSION_PS_SIZE") == "FULL":
                     (columns, lines) = os.get_terminal_size()
                     columns = min(columns, 160)  # 160 for ispf
                     lines, columns = session_ps_14bit(lines, columns)
                     newsize = f"{lines}x{columns}"
                     ati.set("SESSION_PS_SIZE", newsize)
-                elif os.environ.get("SESSION_PS_SIZE", "") == "FULL255":
+                elif os.getenv("SESSION_PS_SIZE") == "FULL255":
                     (columns, lines) = os.get_terminal_size()
                     columns = min(columns, 255)
                     lines, columns = session_ps_14bit(lines, columns)
                     newsize = f"{lines}x{columns}"
                     ati.set("SESSION_PS_SIZE", newsize)
 
-            ati.ati.session = sesname
+            ati.ati.session = new_session
             if self.single_session and ati.ati.rc == 0:
                 if ati.ati.session != ati.ati.sessions:
                     self.single_session = False
 
-            if oldhost != hostname:
+            if hostname and oldhost != hostname:
                 if oldhost is None:
                     ati.drop("SESSION_HOST")
                 else:
                     ati.set("SESSION_HOST", oldhost)
 
-            if port is not None:
-                if oldport != port:
-                    if oldport is None:
-                        ati.drop("SESSION_PORT")
-                    else:
-                        ati.set("SESSION_PORT", oldport)
+            if port is not None and oldport != port:
+                if oldport is None:
+                    ati.drop("SESSION_PORT")
+                else:
+                    ati.set("SESSION_PORT", oldport)
 
-        if oldsize != newsize:
-            if oldsize is None:
-                ati.drop("SESSION_PS_SIZE")
-            else:
-                ati.set("SESSION_PS_SIZE", oldsize)
+            if oldsize != newsize:
+                if oldsize is None:
+                    ati.drop("SESSION_PS_SIZE")
+                else:
+                    ati.set("SESSION_PS_SIZE", oldsize)
 
         if ati.ati.seslost:
             self.__session_check()
