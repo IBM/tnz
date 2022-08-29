@@ -882,10 +882,14 @@ class Zti(cmd.Cmd):
         self.__wait_rc = -2
         return 0
 
-    def do_source(self, arg):
+    def do_source(self, arg, default_rcfile=False):
         """Execute a file of commands.
-            Usage:
-                source filename
+
+        Usage:
+            source filename
+
+        filename
+            Path to file where each line is executed as a zti command.
         """
         if not arg:
             print(">>> Source file is a required argument")
@@ -896,7 +900,8 @@ class Zti(cmd.Cmd):
                 self.cmdqueue += myfile.readlines()
 
         except FileNotFoundError:
-            print(">>> Source file "+repr(arg)+" not found.")
+            if not default_rcfile:
+                print(f">>> Source file {arg!r} not found.")
 
     def do_strs(self, arg):
         # Debug strings for current session.
@@ -3702,7 +3707,6 @@ def main():
                          help="Do not SOURCE .ztirc in home directory")
     rcgroup.add_argument("--rcfile",
                          metavar="rcfile",
-                         default="~/.ztirc",
                          help="Filename to run using SOURCE")
     parser.add_argument("host", nargs="?",
                         help="hostname[:port] to connect/go to")
@@ -3715,8 +3719,10 @@ def main():
     ati.ati.maxlostwarn = 0
 
     if not args.noztirc:
+        default_rcfile = args.rcfile is None
+        rcfile = "~/.ztirc" if default_rcfile else args.rcfile
         try:
-            zti.do_source(args.rcfile)
+            zti.do_source(rcfile, default_rcfile=default_rcfile)
         except Exception:
             pass
 
@@ -3724,7 +3730,7 @@ def main():
         zti.cmdqueue.append(" ".join(("goto", args.host)))
         zti.single_session = True
 
-    if args.rcfile != "~/.ztirc":
+    if args.rcfile is not None and ati.ati.session == ati.ati.sessions:
         zti.single_session = True
 
     intro = """
