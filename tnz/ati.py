@@ -272,7 +272,7 @@ class Ati():
         rval = self.__uv.get(unam, None)
 
         if rval is not None:
-            if rval is _GLOBAL:
+            if rval is Ati.__GLOBAL:
                 return self.__gv.get(unam, None)
 
             return rval
@@ -415,7 +415,7 @@ class Ati():
 
             elif unam in self.__uv:
                 value = self.__uv[unam]
-                if value is not _GLOBAL:
+                if value is not Ati.__GLOBAL:
                     del self.__uv[unam]
                 else:
                     self.__gv.pop(unam, None)
@@ -1748,7 +1748,7 @@ class Ati():
 
         elif unam in self.__uv:
             old_value = self.__uv[unam]
-            if old_value is _GLOBAL:
+            if old_value is Ati.__GLOBAL:
                 self.__gv[unam] = valstr
             else:
                 self.__uv[unam] = valstr
@@ -1771,7 +1771,7 @@ class Ati():
                 continue
 
             value = self.__uv.get(unam)
-            if value is _GLOBAL:
+            if value is Ati.__GLOBAL:
                 continue
 
             if value is not None:
@@ -1780,7 +1780,7 @@ class Ati():
 
                 self.__gv[unam] = value
 
-            self.__uv[unam] = _GLOBAL
+            self.__uv[unam] = Ati.__GLOBAL
 
     def value(self, name, trace=None):
         """returns the contents of the ATI variable
@@ -2076,7 +2076,7 @@ class Ati():
             wlist = self.__whens
             if unam not in wlist:
                 wlist.append(unam)
-                if self.__uv.get(unam, None) is _GLOBAL:
+                if self.__uv.get(unam, None) is Ati.__GLOBAL:
                     # TODO global/shared when not fully handled yet
                     self.__gv[unam] = func
                 else:
@@ -2443,7 +2443,7 @@ class Ati():
 
                 donel.append(unam)
                 func = self.__uv[unam]
-                if func is _GLOBAL:
+                if func is Ati.__GLOBAL:
                     func = self.__gv[unam]
 
                 func()
@@ -2637,7 +2637,7 @@ class Ati():
 
     def __when_priority(self, name):
         whenv = self.__uv[name]
-        if whenv is _GLOBAL:
+        if whenv is Ati.__GLOBAL:
             whenv = self.__gv[name]
 
         return whenv.pri[0]
@@ -3490,6 +3490,7 @@ class Ati():
     # private class data
 
     __ati_stack = []
+    __GLOBAL = {}  # use as value in __uv to indicate to look in __gv
 
 
 class _AtiConst():
@@ -3504,8 +3505,6 @@ class AtiError(Exception):
     """General Ati error.
     """
 
-
-_GLOBAL = {}  # use as value in __uv to indicate to look in __gv
 
 CASI = _AtiConst("CASI")  # use for scrhas
 EOL = _AtiConst("EOL")  # use for extract
