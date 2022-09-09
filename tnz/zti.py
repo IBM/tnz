@@ -1404,48 +1404,24 @@ HELP and HELP KEYS commands for more information.
 
     # Private methods
 
-    def __bg_wait(self):
+    def __bg_wait(self, ztl):
         """Keep sessions alive
            while at the command prompt.
         """
-        ztl = []
         while True:
-            self.__lock.acquire()
-            run_in_bg = self.__bg
-            if run_in_bg:
-                sessions = ati.ati.sessions.split()
-                if not sessions:
+            with self.__lock:
+                if not ztl:
                     self.__bg = False
-                    run_in_bg = False
 
-            self.__lock.release()
+                if not self.__bg:
+                    return
 
-            if not run_in_bg:
-                return
+            tns = ztl.pop(0)
+            if not tns.seslost:
+                tns.wait()
 
-            # TODO FIXME what if all sessions lost?
-
-            # choose a Zti to use for wait
-            # round robin that choice
-            # round robin might only matter
-            # if seslost is not handled properly
-            # which it is not yet
-
-            for session in sessions:
-                tns = ati.ati.get_tnz(session)
-                if tns not in ztl:
-                    break
-
-                ztn = tns
-                tns = None
-
-            if tns:
+            if not tns.seslost:
                 ztl.append(tns)
-            else:
-                tns = ztn
-                ztl = [ztn]
-
-            tns.wait()
 
     def __bg_wait_start(self):
         """Ensure the background
@@ -1453,18 +1429,18 @@ HELP and HELP KEYS commands for more information.
            sessions alive while at
            the command prompt.
         """
-        self.__lock.acquire()
-        run_in_bg = self.__bg
-        self.__lock.release()
+        with self.__lock:
+            if self.__bg:
+                return  # already running
 
-        if run_in_bg:
-            return  # already running
-
-        if not ati.ati.sessions:
+        sessions = ati.ati.sessions.split()
+        if not sessions:
             return  # no sessions
 
         self.__bg = True
-        self.__thread = threading.Thread(target=self.__bg_wait)
+        ztl = [ati.ati.get_tnz(session) for session in sessions]
+        self.__thread = threading.Thread(target=self.__bg_wait,
+                                         args=(ztl,))
         self.__thread.start()
 
     def __bg_wait_end(self):
