@@ -3170,8 +3170,8 @@ class Tnz:
         Called by process_order.
         """
         order_len = stop - start
-        if order_len < 1:
-            raise TnzError(f"SF requires 1 bytes, got {order_len}")
+        if order_len < 2:
+            raise TnzError(f"SF requires 2 bytes, got {order_len}")
 
         self.__pt_erase = False
         fattr = order[start+1]
