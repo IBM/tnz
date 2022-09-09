@@ -2479,13 +2479,12 @@ class Ati():
             self.ses_exc = ses_exc
             self.set("SESLOST", session, xtern=False, trace=trace)
 
-        lostwarncnt = self.__gv["lostwarncnt"]
+        lostwarncnt = self.__gv["lostwarncnt"] + 1
         maxlostwarn = self.__gv["MAXLOSTWARN"]
 
         if 0 < maxlostwarn <= lostwarncnt:
             raise RuntimeError("Excessive lost session warnings")
 
-        lostwarncnt += 1
         self.__gv["lostwarncnt"] = lostwarncnt
 
         logger = self.__gv["logger"]

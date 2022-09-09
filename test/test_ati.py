@@ -1,13 +1,18 @@
 from tnz.ati import *
+from tnz.ati import Ati
+
 
 def test_num():
     assert num("5bcde") == 5
 
+
 def test_stripl():
     assert stripl("   ab de ") == "ab de "
 
+
 def test_stript():
     assert stript("   ab de ") == "   ab de"
+
 
 def test_init():
     assert value("CURCOL") == "0"
@@ -28,18 +33,57 @@ def test_init():
     assert value("SENDSTR") == ""
     assert value("SESLOST") == ""
     assert value("SESSION") == "NONE"
-    assert value("SESSIONID") in ("0","1")
+    assert value("SESSIONID") in ("0", "1")
     assert value("SESSIONS") == ""
-    assert value("SESSION24") in ("0","1")
-    assert value("SHOWTYPE") in ("0","1")
+    assert value("SESSION24") in ("0", "1")
+    assert value("SHOWTYPE") in ("0", "1")
     assert value("TRACE") == "NONE"
     assert value("WAITSLEEP") == "1"
 
+
 def test_badses():
-    set("SESSION_PORT",9) # no tcp? or discard?
-    assert set("SESSION","BADSES") in (0, 8)
+    set("SESSION_PORT", 9)  # no tcp? or discard?
+    assert set("SESSION", "BADSES") in (0, 8, 12)
     assert send(enter) == 12
     assert value("SESSION") == "NONE"
     assert value("SESSIONS") == ""
     assert value("SESLOST") == "BADSES"
     drop("SESSION_PORT")
+
+
+def test_maxlostwarn():
+    with Ati():
+        set("MAXLOSTWARN", 1)
+        set("SESSION_PORT", 9)  # no tcp? or discard?
+        try:
+            set("SESSION", "BADSES")
+
+        except Exception:
+            pass
+
+        else:
+            assert value("RC") == "0"
+            try:
+                send(enter)
+
+            except Exception:
+                pass
+
+            else:
+                assert not "expected Exception"
+
+    with Ati():
+        set("MAXLOSTWARN", 2)
+        set("SESSION_PORT", 9)  # no tcp? or discard?
+        assert set("SESSION", "BADSES") in (0, 8, 12)
+        if value("RC") == "0":
+            assert send(enter) == 12
+
+        try:
+            send(enter)
+
+        except Exception:
+            pass
+
+        else:
+            assert not "expected Exception"
