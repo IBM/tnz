@@ -4816,7 +4816,7 @@ class Tnz:
                     }
 
 
-class TnzError(RuntimeError):
+class TnzError(Exception):
     """General Tnz error.
     """
 
