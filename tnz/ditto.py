@@ -135,10 +135,10 @@ class Ditto(object):
 
         ati_rc = ati.set("SESSION", session)
         if ati_rc == 1:  # reestablished session
-            raise RuntimeError("already connected")
+            raise DittoError("already connected")
 
         if ati_rc != 0:  # new session
-            raise RuntimeError(f"set session error {ati_rc}")
+            raise DittoError(f"set session error {ati_rc}")
 
     def cursor_after(self, session, identifier_string):
         """Use for Ditto @=identifier_string command text.
@@ -194,7 +194,7 @@ class Ditto(object):
 
         ati_rc = self.__ati.send(_ati.enter)
         if ati_rc != 0:
-            raise RuntimeError(f"send enter error {ati_rc}")
+            raise DittoError(f"send enter error {ati_rc}")
 
     def enter_after(self, session, identifier_string, text):
         """Shorthand for cursor_after followed by enter.
@@ -267,7 +267,7 @@ class Ditto(object):
         rval = ati.extract(length, f_or_l, matching, (row, col))
         ati_rc = _ati.num(ati.rc)
         if ati_rc != 0:
-            raise RuntimeError(f"extract error {ati_rc}")
+            raise DittoError(f"extract error {ati_rc}")
 
         return rval
 
@@ -305,14 +305,14 @@ class Ditto(object):
             ati_rc = self.__ati.send(pos, text)
 
         if ati_rc != 0:
-            raise RuntimeError(f"send error {ati_rc}")
+            raise DittoError(f"send error {ati_rc}")
 
     def set_session(self, session):
         ati = self.__ati
         if session != ati.session:
             ati_rc = ati.set("SESSION", session)
             if ati_rc != 1:  # reestablished session
-                raise RuntimeError(f"set session error {ati_rc}")
+                raise DittoError(f"set session error {ati_rc}")
 
     def verify(self, session, text, timeout=None):
         """Use for Ditto verify commands.
@@ -327,7 +327,7 @@ class Ditto(object):
             ati_rc = ati.wait(timeout, lambda: ati.scrhas(text))
 
         if ati_rc != 1:
-            raise RuntimeError(f"wait error {ati_rc}")
+            raise DittoError(f"wait error {ati_rc}")
 
     def waitfor(self, session):
         """Use for Ditto C=WAITFOR command text.
@@ -338,7 +338,7 @@ class Ditto(object):
 
         ati_rc = ati.wait(self.__active)
         if ati_rc != 1:
-            raise RuntimeError(f"wait error {ati_rc}")
+            raise DittoError(f"wait error {ati_rc}")
 
     # properties
 
@@ -402,12 +402,17 @@ class Ditto(object):
 
         ati_rc = ati.wait(self.__unlocked)  # needed?
         if ati_rc != 1:
-            raise RuntimeError(f"wait error {ati_rc}")
+            raise DittoError(f"wait error {ati_rc}")
 
         if not ati.scrhas(identifier_string):
-            raise RuntimeError("identifier string not found")
+            raise DittoError("identifier string not found")
 
         pos = (ati.numvalue("HITROW"), ati.numvalue("HITCOL"))
         ati_rc = ati.send(pos, key)
         if ati_rc != 0:
-            raise RuntimeError(f"send error {ati_rc}")
+            raise DittoError(f"send error {ati_rc}")
+
+
+class DittoError(Exception):
+    """General Ditto error.
+    """

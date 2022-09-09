@@ -757,7 +757,7 @@ class Ati():
             return  # TODO rc=4
 
         if unam in self.__session_tnz:
-            raise RuntimeError(unam+" already established")
+            raise AtiError(unam+" already established")
 
         tns = self.__session_tnz[session]
         self.__session_tnz[unam] = tns
@@ -784,7 +784,7 @@ class Ati():
             logger.critical(value)
 
     def scrcomp(self, value):
-        raise RuntimeError("not implemented")
+        raise AtiError("not implemented")
 
     def scrhas(self, *args, wc=None):
         """Check current screen for a string.
@@ -1632,7 +1632,7 @@ class Ati():
             valstr = str(value)
 
         if verifycert is not None and unam != "SESSION":
-            raise RuntimeError("Using verifycert requires SESSION")
+            raise AtiError("Using verifycert requires SESSION")
 
         if unam == "SESSION":
             self.__set_session(value,
@@ -1693,7 +1693,7 @@ class Ati():
             self.__logresult("%s = %r", unam, str(self.__gv[unam]))
 
         elif unam == "SCRUPDATE":
-            raise RuntimeError('not implemented')
+            raise AtiError('not implemented')
 
         elif unam == "KEYUNLOCK":
             self.keyunlock = value
@@ -1720,7 +1720,7 @@ class Ati():
             self.__logresult("%s = %r", unam, valstr)
 
         elif unam == "SCRLIBS":
-            raise RuntimeError('not implemented')
+            raise AtiError('not implemented')
 
         elif xtern and unam in ("SESSIONS",
                                 "MAXCOL",
@@ -1736,7 +1736,7 @@ class Ati():
                                 "DATETIME",
                                 "SENDSTR",
                                 "SESLOST"):
-            raise RuntimeError(unam+" is read-only")
+            raise AtiError(unam+" is read-only")
 
         elif unam == "SESLOST":
             self.__drop_session()
@@ -1776,7 +1776,7 @@ class Ati():
 
             if value is not None:
                 if unam in self.__gv:
-                    raise RuntimeError(unam+" already set")
+                    raise AtiError(unam+" already set")
 
                 self.__gv[unam] = value
 
@@ -1985,7 +1985,7 @@ class Ati():
                         self.__shell_mode()
 
                     if raise_it:
-                        raise RuntimeError("WAIT TIMEOUT occurred")
+                        raise AtiError("WAIT TIMEOUT occurred")
 
                 self.set("RC", ati_rc, xtern=False)
                 return ati_rc
@@ -2335,7 +2335,7 @@ class Ati():
 
         in_wait = self.__in_wait
         if in_wait and timeout != 0:
-            raise RuntimeError("Already in wait")
+            raise AtiError("Already in wait")
 
         okeylock = self.__gv["KEYLOCK"]
         if okeylock != "1":
@@ -2483,7 +2483,7 @@ class Ati():
         maxlostwarn = self.__gv["MAXLOSTWARN"]
 
         if 0 < maxlostwarn <= lostwarncnt:
-            raise RuntimeError("Excessive lost session warnings")
+            raise AtiError("Excessive lost session warnings")
 
         self.__gv["lostwarncnt"] = lostwarncnt
 
@@ -2545,7 +2545,7 @@ class Ati():
             # existing session
 
             if verifycert is not None:
-                raise RuntimeError("Used verifycert with old session")
+                raise AtiError("Used verifycert with old session")
 
             self.__gv["SESSION"] = unam
             self.__refresh()
@@ -3207,7 +3207,7 @@ class Ati():
 
     @scrlibs.setter
     def scrlibs(self, value):
-        raise RuntimeError('not implemented')
+        raise AtiError('not implemented')
 
     @property
     def scrupdate(self):
@@ -3498,6 +3498,11 @@ class _AtiConst():
 
     def __repr__(self):
         return self.name
+
+
+class AtiError(Exception):
+    """General Ati error.
+    """
 
 
 _GLOBAL = {}  # use as value in __uv to indicate to look in __gv

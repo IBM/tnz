@@ -1,5 +1,6 @@
 from tnz.ati import *
 from tnz.ati import Ati
+from tnz.ati import AtiError
 
 
 def test_num():
@@ -55,22 +56,23 @@ def test_maxlostwarn():
     with Ati():
         set("MAXLOSTWARN", 1)
         set("SESSION_PORT", 9)  # no tcp? or discard?
+        got_expected_error = False
         try:
             set("SESSION", "BADSES")
 
-        except Exception:
-            pass
+        except AtiError:
+            got_expected_error = True
 
-        else:
+        if not got_expected_error:
             assert value("RC") == "0"
+            got_expected_error = False
             try:
                 send(enter)
 
-            except Exception:
-                pass
+            except AtiError:
+                got_expected_error = True
 
-            else:
-                assert not "expected Exception"
+            assert got_expected_error
 
     with Ati():
         set("MAXLOSTWARN", 2)
@@ -79,11 +81,11 @@ def test_maxlostwarn():
         if value("RC") == "0":
             assert send(enter) == 12
 
+        got_expected_error = False
         try:
             send(enter)
 
-        except Exception:
-            pass
+        except AtiError:
+            got_expected_error = True
 
-        else:
-            assert not "expected Exception"
+        assert got_expected_error
