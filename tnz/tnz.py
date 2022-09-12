@@ -4380,8 +4380,8 @@ class Tnz:
                     self.is_protected(addr - 1)):
                 self.__addlines(keep_all)
 
-        elif self.is_unprotected():  # TSO?
-            self.__readlines_maxrow = self.maxrow - 1
+        elif self.is_unprotected():  # TSO
+            self.__readlines_maxrow = self.maxrow
             self.__addlines()
             if self.readlines:
                 line = self.readlines.pop()
