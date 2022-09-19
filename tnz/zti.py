@@ -30,7 +30,7 @@ Environment variables used:
     ZTI_TITLE
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021, 2022 IBM Inc. All Rights Reserved.
+Copyright 2021, 2023 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -79,14 +79,6 @@ class Zti(cmd.Cmd):
     class performs the function of the ATI session manager and error
     handler.
     """
-
-    def __del__(self):
-        """Zti destructor
-        """
-        self.__bg_wait_end()
-        # do not switch to shell mode here
-        # doing so may log and logging may encounter errors
-        # if this is being done during shutdown
 
     def __init__(self, stdin=None, stdout=None):
         """A Zti instance is a line-oriented and full-screen ascii
@@ -313,7 +305,7 @@ class Zti(cmd.Cmd):
         if len(self.downloads) <= 0:
             print(">>> No downloads to discard")
 
-        self.__bg_wait_end()  # needed
+        ati.ati._pause_reading()  # needed
 
         if arg.lower() == "all":
             while self.downloads:
@@ -341,7 +333,7 @@ class Zti(cmd.Cmd):
         # Debug display for current session.
         # This is intentionally not a docstring so that DISPLAY will not
         # appear as a 'documented command'.
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         tns = ati.ati.get_tnz()
         if tns:
             print(tns.scrstr())
@@ -349,7 +341,7 @@ class Zti(cmd.Cmd):
     def do_downloads(self, arg):
         """List downloads.
         """
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         self.__downcnt = len(self.downloads)
         for i in range(0, self.__downcnt):
             download = self.downloads[i]
@@ -368,7 +360,7 @@ class Zti(cmd.Cmd):
 
         This is also modelled after the ATI DROP statement.
         """
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         if self.single_session and "SESSION" in arg.upper().split():
             self.single_session = False
 
@@ -400,7 +392,7 @@ class Zti(cmd.Cmd):
         # This is intentionally not a docstring so that FIELDS will not
         # appear as a 'documented command'.
 
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         tns = ati.ati.get_tnz()
         if not tns:
             return
@@ -455,7 +447,7 @@ class Zti(cmd.Cmd):
         command and the ATI GOTO EXEC. It is NOT modelled after the
         ATI GOTO statement.
         """
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         sessions = ati.ati.sessions
 
         if arg == "?":
@@ -642,7 +634,7 @@ class Zti(cmd.Cmd):
         print(">>> HOST command not supported. Consider SHELL.")
 
     def do_lines(self, arg):
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         tns = ati.ati.get_tnz()
         if not tns:
             return
@@ -666,7 +658,7 @@ class Zti(cmd.Cmd):
         if len(self.downloads) <= 0:
             print(">>> No downloads to receive")
 
-        self.__bg_wait_end()  # needed
+        ati.ati._pause_reading()  # needed
 
         download = self.downloads[0]
         name = download.file.name
@@ -709,7 +701,7 @@ class Zti(cmd.Cmd):
             print("new session name required")
             return
 
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         ati.rename(arg)
 
     def do_return(self, arg):
@@ -754,7 +746,7 @@ class Zti(cmd.Cmd):
             print(f"{name} IS WRITE-ONLY")
             return
 
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
 
         value = ati.ati[arg]
         if value is not None:
@@ -781,7 +773,7 @@ class Zti(cmd.Cmd):
     def do_session(self, arg):
         """Get information about the current session.
         """
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         tns = ati.ati.get_tnz()
         if not tns:
             print("NONE")
@@ -821,7 +813,7 @@ class Zti(cmd.Cmd):
             print("variable name required")
             return
 
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
 
         name = rexx.word(arg, 1)
         value = rexx.subword(arg, 2)
@@ -848,7 +840,7 @@ class Zti(cmd.Cmd):
         HOSTCODE and the host screen is being displayed due to an
         interactive trace command being entered.
         """
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         self.__prog_mode()
         self.__r2d2(self.stdscr, _WAIT_FOREVER, -1)
 
@@ -908,7 +900,7 @@ class Zti(cmd.Cmd):
         # This is intentionally not a docstring so that STRS will not
         # appear as a 'documented command'.
 
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         tns = ati.ati.get_tnz()
         if not tns:
             return
@@ -988,7 +980,7 @@ class Zti(cmd.Cmd):
 
     def do_upload(self, arg):
 
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
         tns = ati.ati.get_tnz()
         if not tns:
             print("No session")
@@ -1177,7 +1169,7 @@ HELP KEYS commands for more information.
                 self.do_downloads("")
 
             self.__update_prompt()  # according to SESSION
-            self.__bg_wait_start()
+            ati.ati._resume_reading()
 
         return False
 
@@ -1186,7 +1178,7 @@ HELP KEYS commands for more information.
 
         Command prompt terminating
         """
-        self.__bg_wait_end()
+        ati.ati._pause_reading()
 
         if self.stdscr:
             self.__shell_mode()
@@ -1208,7 +1200,7 @@ HELP KEYS commands for more information.
         Initialize
         """
         self.__update_prompt()  # according to SESSION
-        self.__bg_wait_start()
+        ati.ati._resume_reading()
 
     def print_stack(self, exc=False):
         self.__shell_mode()
@@ -1403,66 +1395,6 @@ HELP and HELP KEYS commands for more information.
             self.__dirty_range(saddr, eaddr, tns=tns)
 
     # Private methods
-
-    def __bg_wait(self, ztl):
-        """Keep sessions alive
-           while at the command prompt.
-        """
-        while True:
-            with self.__lock:
-                if not ztl:
-                    self.__bg = False
-
-                if not self.__bg:
-                    return
-
-            tns = ztl.pop(0)
-            if not tns.seslost:
-                tns.wait()
-
-            if not tns.seslost:
-                ztl.append(tns)
-
-    def __bg_wait_start(self):
-        """Ensure the background
-           thread is running to keep
-           sessions alive while at
-           the command prompt.
-        """
-        with self.__lock:
-            if self.__bg:
-                return  # already running
-
-        sessions = ati.ati.sessions.split()
-        if not sessions:
-            return  # no sessions
-
-        self.__bg = True
-        ztl = [ati.ati.get_tnz(session) for session in sessions]
-        self.__thread = threading.Thread(target=self.__bg_wait,
-                                         args=(ztl,))
-        self.__thread.start()
-
-    def __bg_wait_end(self):
-        """Ensure the background
-           thread that may use
-           sessions is NOT running.
-           Needed so that command
-           processing can use the
-           sessions. And needed
-           so that application
-           can shut down.
-        """
-        if self.__thread is None:
-            return  # not running
-
-        self.__lock.acquire()
-        self.__bg = False
-        self.__lock.release()
-
-        tnz.wakeup_wait()
-        self.__thread.join()
-        self.__thread = None
 
     def __clean_range(self, start, end):
         """See __dirty_range.
@@ -1827,7 +1759,7 @@ HELP and HELP KEYS commands for more information.
 
             def do_plugin(arg, entry=entry, **kwargs):
                 plugin = entry.load()
-                self.__bg_wait_end()
+                ati.ati._pause_reading()
                 tb_count = self.__tb_count
                 plugin_goto = self.__plugin_goto
                 self.__plugin_goto = ""
@@ -3159,7 +3091,7 @@ HELP and HELP KEYS commands for more information.
                     # must be for wakeup_fd
                     return True
 
-                waitrv = self.__wait(tns, tout, zti=self)
+                waitrv = self.__wait(tns, tout)
                 if waitrv is True:
                     return ""
 
@@ -3296,9 +3228,9 @@ HELP and HELP KEYS commands for more information.
         if self.__in_script:
             self.prompt = "(paused) "+self.prompt
 
-    def __wait(self, tns, timeout=0, zti=None, key=None):
+    def __wait(self, tns, timeout=0, key=None):
         self.__prep_wait()
-        return tns.wait(timeout, zti=zti, key=key)
+        return ati.ati._ax_wait(timeout, zti=self, key=key)
 
     def __write_blanks(self, tns, saddr, eaddr):
         """call to write where field attributes are
@@ -3720,7 +3652,8 @@ Use the HELP and HELP KEYS commands for more information.
     else:
         intro = f"{intro}No plugins installed.\n"
 
-    zti.cmdloop(intro)
+    with ati.ati:
+        zti.cmdloop(intro)
 
 
 # Private data

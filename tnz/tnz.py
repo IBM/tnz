@@ -11,7 +11,7 @@ Environment variables used:
     TNZ_LOGGING
     ZTI_SECLEVEL
 
-Copyright 2021 IBM Inc. All Rights Reserved.
+Copyright 2021, 2023 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -102,7 +102,8 @@ class Tnz:
         self.__zti = None
         self.__waiting = False
         self.__wait_rv = None
-        self._transport = None  # asyncio.Transport
+        self._transport = self.__transport = None  # asyncio.Transport
+        self._paused = False
         self.__pndrec = b""
         self.__eor = False
         self.__tn3270e = False
@@ -237,8 +238,6 @@ class Tnz:
         else:
             self.name = str(hash(self))
 
-        self.need_shutdown = False
-
         # Begin "smart" detection of default properties
 
         try:
@@ -362,11 +361,12 @@ class Tnz:
         """
         transport = self._transport
         if transport:
-            self._transport = None
+            self._transport = self.__transport = None
             transport.abort()
 
     def connect(self, host=None, port=None,
-                secure=False, verifycert=True):
+                secure=False, verifycert=True, *,
+                loop=None):
         """Connect to the host.
         """
         if self._transport:
@@ -388,7 +388,6 @@ class Tnz:
             @staticmethod
             def connection_made(transport):
                 self._transport = transport
-                self.need_shutdown = True
                 self.seslost = False
 
             @staticmethod
@@ -441,8 +440,13 @@ class Tnz:
         else:
             context = None
 
+        if loop and self.__loop and loop is not self.__loop:
+            raise TnzError("Inconsistent use of loop")
+
         coro = self.__connect(_TnzProtocol, host, port, context)
+        self.__loop = loop
         loop = self.__get_event_loop()
+        self.__loop = loop
         task = loop.create_task(coro)
         self.__connect_task = task
 
@@ -1269,6 +1273,13 @@ class Tnz:
         self.curadd = ca0
         return chars_pasted
 
+    def pause_reading(self):
+        if not self._paused:
+            if self.__transport:
+                self.__transport.pause_reading()
+
+            self._paused = True
+
     def pf1(self):
         """Send PF1
         """
@@ -1482,6 +1493,12 @@ class Tnz:
         self.__log_info("put_file: %s", self.__ddmmsg)
 
         return self.__ddmmsg
+
+    def resume_reading(self):
+        if self._paused:
+            self._paused = False
+            if self.__transport:
+                self.__transport.resume_reading()
 
     def scrstr(self, saddr=0, eaddr=0, rstrip=None):
         """Return a string representation of the character buffer.
@@ -1805,7 +1822,7 @@ class Tnz:
         task = self.__connect_task
         if task:
             task.cancel()
-            loop = self.__get_event_loop()
+            loop = self.__loop
             if not loop.is_running():
                 # skip if ANY loop is running?
                 loop.run_until_complete(task)
@@ -1813,7 +1830,6 @@ class Tnz:
         transport = self._transport
         if transport:
             self._transport = None
-            # any way to handle need_shutdown?
             transport.abort()
 
     def start_readlines(self):
@@ -1874,36 +1890,37 @@ class Tnz:
         """Wait for event.
 
         Returns after timeout seconds or when data is received.
+
+        Only use if loop was not provided when creating the object.
+        When loop was provided, use change() instead.
         """
         self.__log_debug("tnz.wait(%r, %r, %r)", timeout, zti, key)
         loop = self.__get_event_loop()
-        wait_event = _wait_event
-        if not wait_event and self.__connect_task:
-            loop.stop()
-            loop.run_forever()
-            wait_event = _wait_event
+        coro = self.change(timeout, zti=zti, key=key)
+        return loop.run_until_complete(coro)
 
-        if not wait_event:
-            self.__log_error("nothing to wait on")
-            return True
+    async def change(self, timeout=None, zti=None, key=None):
+        """Wait for event.
+
+        Returns after timeout seconds or when data is received.
+
+        Only use if loop was provided when creating the object.
+        When loop was not provided, use wait() instead.
+        """
+        self.__log_debug("tnz.change(%r, %r, %r)", timeout, zti, key)
+
+        global _wait_event
+        wait_event = _wait_event
+        if not _wait_event and self.__loop is _loop:
+            wait_event = asyncio.Event()
+            _wait_event = wait_event
 
         if self.seslost:
-            self.__log_debug("tnz.wait setting timeout=0")
+            self.__log_debug("tnz.change setting timeout=0")
             timeout = 0
 
         if self.__waiting:
             raise TnzError("Already waiting")
-
-        event_wait = wait_event.wait()
-        if timeout is None:
-            timeout_handle = None
-        else:
-            def callback():
-                if not wait_event.is_set():
-                    self.__wait_rv = False
-                    wait_event.set()
-
-            timeout_handle = loop.call_later(timeout, callback)
 
         try:
             self.__waiting = True
@@ -1912,11 +1929,14 @@ class Tnz:
                 self.ddmrecv = zti.ddmrecv  # host-initiated get
                 self.ddmsend = zti.ddmsend  # host-initiated put
 
-            self.__loop.run_until_complete(event_wait)
+            await asyncio.wait_for(wait_event.wait(), timeout=timeout)
             if self.seslost:
                 return True
 
             return self.__wait_rv
+
+        except asyncio.TimeoutError:
+            return False
 
         finally:
             wait_event.clear()
@@ -1926,9 +1946,6 @@ class Tnz:
                 self.__zti = None
                 self.ddmrecv = False
                 self.ddmsend = False
-
-            if timeout_handle:
-                timeout_handle.cancel()
 
     def word_at(self, address):
         """Return the word at the input address.
@@ -3671,7 +3688,7 @@ class Tnz:
     async def __connect(self, protocol, host, port, ssl_context):
         self.__log_debug("__connect(%r, %r, %r, %r)",
                          protocol, host, port, ssl_context)
-        loop = asyncio.get_event_loop()
+        loop = self.__loop
         if hasattr(asyncio, "current_task"):
             task = asyncio.current_task()
         else:
@@ -3703,6 +3720,11 @@ class Tnz:
         finally:
             if self.__connect_task is task:
                 self.__connect_task = None
+
+        self.__transport = self._transport
+        if self._paused:
+            self.__transport.pause_reading()
+            self.__log_debug("connection made, transport paused")
 
     def __erase(self, saddr, eaddr):
         """Process erase function.
@@ -4435,7 +4457,7 @@ class Tnz:
     async def __start_tls(self, context):
         self.__log_debug("__start_tls(%r)", context)
 
-        loop = asyncio.get_event_loop()
+        loop = self.__loop
         if hasattr(asyncio, "current_task"):
             task = asyncio.current_task()
         else:
@@ -4461,6 +4483,9 @@ class Tnz:
             self._transport = transport
             self.__secure = True
             self.__log_debug("__start_tls transport: %r", transport)
+            if self._paused:
+                transport.pause_reading()
+                self.__log_debug("__start_tls transport is paused")
 
         finally:
             if self.__connect_task is task:
@@ -4859,7 +4884,7 @@ def bit6(control_int):
 
 def connect(host=None, port=None,
             secure=None, verifycert=None,
-            name=None):
+            name=None, *, loop=None):
     """Create a new Tnz object and connect to the host.
 
     secure = False if do not care about security
@@ -4879,21 +4904,35 @@ def connect(host=None, port=None,
     if secure is None:
         secure = bool(port != 23)
 
-    tnz.connect(host, port, secure=secure, verifycert=verifycert)
+    tnz.connect(host, port, secure=secure, verifycert=verifycert, loop=loop)
 
     return tnz
+
+def new_event_loop():
+    if platform.system() == "Windows":
+        # default Windows policy does not support add_reader
+        policy = asyncio.WindowsSelectorEventLoopPolicy()
+        # asyncio.set_event_loop_policy(policy)
+    else:
+        policy = asyncio.get_event_loop_policy()
+
+    loop = policy.new_event_loop()
+    # policy.set_event_loop(loop)
+    return loop
 
 
 def selector_set(fileno, data=None):
     """Add input fd for wait read events.
     """
-    _loop.add_reader(fileno, _read_available, data)
+    # FIXME is this a problem that this is async ???
+    _loop.call_soon_threadsafe(_loop.add_reader, fileno, _read_available, data)
 
 
 def selector_del(fileno):
     """Remove input fd from wait read events.
     """
-    _loop.remove_reader(fileno)
+    # FIXME is this a problem that this is async ???
+    _loop.call_soon_threadsafe(_loop.remove_reader, fileno)
 
 
 def wakeup_wait(*_, **__):

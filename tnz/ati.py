@@ -88,16 +88,19 @@ Environment variables used:
     ZTI_TITLE (see zti.py)
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021 IBM Inc. All Rights Reserved.
+Copyright 2021, 2023 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import asyncio
 import functools
 import inspect
 import logging
 from logging import handlers
 import os
+import queue
 import re
+import threading
 import time
 import traceback
 
@@ -238,9 +241,14 @@ class Ati():
         global ati
         self.__ati_stack.append(ati)
         ati = self
+        # FIXME what if thread already started?
+        loop = self.__ax_event_loop()
+        self.__ax_thread_start(loop)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         global ati
+        loop = self.__ax_event_loop()
+        self.__ax_thread_stop(loop)
         ati = self.__ati_stack.pop()
 
     def __getitem__(self, name):
@@ -249,7 +257,7 @@ class Ati():
         unam = name.upper()
 
         if unam == "SESSION":
-            return self.__gv["SESSION"]
+            return self.session
 
         if unam == "SESSIONS":
             return self.sessions
@@ -355,6 +363,10 @@ class Ati():
         self.__session_tnz = {}
         self.__inwhen = False
         self.__ranwhen = False
+        self.loop = None
+        self.__ax_loop = None
+        self.__ax_queue = None
+        self.__ax_thread = None
 
     # public methods
 
@@ -674,7 +686,7 @@ class Ati():
             return None
 
         if name is None:
-            name = self.__gv["SESSION"]
+            name = self.session
 
         return self.__session_tnz.get(name, None)
 
@@ -1194,7 +1206,7 @@ class Ati():
             etime = time.time() + tout
             self.__refresh_vars()
             while TRUE == self.__gv["KEYLOCK"]:
-                self.__refresh(tout)
+                self.__ax_run(self.__refresh(tout))
                 if self.__sescheck():
                     return 12
 
@@ -1596,7 +1608,7 @@ class Ati():
             # the host to erase the characters just put on
             # the screen.
             # do a full refresh without suspending
-            self.__refresh()  # good practice?
+            self.__ax_run(self.__refresh())  # good practice?
 
         else:
             self.__refresh_vars()
@@ -1885,11 +1897,51 @@ class Ati():
             raise ValueError("wrong number of arguments")
 
         self.__logcode("wait%s", str(args))
+        rc = self.__ax_run(self.__wait(*args))
+        self.set("RC", rc, xtern=False)
+        return rc
+
+    async def __wait(self, *args):
+        try:
+            return await self.__condition(*args)
+
+        finally:
+            for tns in self.__session_tnz.values():
+                tns.pause_reading()
+
+    async def __condition(self, *args):
+        # see wait()
+        justtime = False
+        timeout = self.__gv["MAXWAIT"]
+        if len(args) == 0:
+            expr = False
+            justtime = True
+        elif len(args) == 1:
+            if args[0] is False:
+                expr = False
+            elif args[0] is True:
+                expr = True
+            elif callable(args[0]):
+                expr = args[0]
+            else:
+                timeout = self.__seconds(args[0])
+                expr = False
+                justtime = True
+        elif len(args) == 2:
+            timeout = self.__seconds(args[0])
+            expr = args[1]
+        else:
+            raise ValueError("wrong number of arguments")
+
+        self.__logcode("_condition%s", str(args))
+
+        for tns in self.__session_tnz.values():
+            tns.resume_reading()
 
         session = self.session
         byte_count = 0
         if session in self.__session_tnz:
-            self.__refresh()
+            await self.__refresh()  # timeout=0
             byte_count = self.__ses_bytes()
         else:
             session = ""
@@ -1921,7 +1973,7 @@ class Ati():
             if expr:
                 break
 
-            rval = self.__runwhens()
+            rval = await self.__runwhens()
 
             # maybe a WHEN satisfied the expression
 
@@ -1947,10 +1999,10 @@ class Ati():
             if nsession and nsession in self.__session_tnz:
                 if (session == nsession) and (byte_count == nbytecnt):
                     refreshcnt += 1
-                    rrv = self.__refresh(tout, keylock=False)
+                    rrv = await self.__refresh(tout, keylock=False)
             elif tout > 0:
                 sleepcnt += 1
-                time.sleep(tout)
+                await asyncio.sleep(tout)
 
             if rrv == -2:  # if force skip
                 self.__logerror(">> User SKIP")
@@ -1978,7 +2030,7 @@ class Ati():
 
                             if self.__zti:
                                 raise_it = False
-                                rval = self.__zti.onerror()
+                                rval = await self.__ax_run_sync(self.__zti.onerror)
                                 if rval is None:  # user force ati_rc=1
                                     ati_rc = 1
 
@@ -2306,7 +2358,7 @@ class Ati():
         self.__log_check()
         self.__gv["logger_code"].info(args[0], *args[1:])
 
-    def __refresh(self, timeout=0, keylock=True):
+    async def __refresh(self, timeout=0, keylock=True):
         """Perform I/O.
 
         When zti is involved, downstream of zti.wait
@@ -2334,8 +2386,9 @@ class Ati():
         logger.debug("in __refresh(%d)", timeout)
 
         in_wait = self.__in_wait
-        if in_wait and timeout != 0:
-            raise AtiError("Already in wait")
+        # FIXME TODO need contextvar for in_wait???
+        #if in_wait and timeout != 0:
+        #    raise RuntimeError("Already in wait")
 
         okeylock = self.__gv["KEYLOCK"]
         if okeylock != "1":
@@ -2364,9 +2417,10 @@ class Ati():
             try:
                 self.__in_wait = True
                 if zti:
-                    rval = zti.wait(tout, keylock=keylock)
+                    zti_wait = functools.partial(zti.wait, tout, keylock=keylock)
+                    rval = await self.__ax_run_sync(zti_wait)
                 else:
-                    rval = tns.wait(tout)
+                    rval = await tns.change(tout)
 
                 self.__refresh_vars()
 
@@ -2418,7 +2472,7 @@ class Ati():
             else:
                 self.__gv["KEYLOCK"] = "0"
 
-    def __runwhens(self):
+    async def __runwhens(self):
         logger = self.__gv["logger"]
         logger.debug("in _runwhens")
 
@@ -2446,7 +2500,13 @@ class Ati():
                 if func is Ati.__GLOBAL:
                     func = self.__gv[unam]
 
-                func()
+                for tns in self.__session_tnz.values():
+                    tns.pause_reading()
+
+                await self.__ax_run_sync(func)
+
+                for tns in self.__session_tnz.values():
+                    tns.resume_reading()
 
         finally:
             self.__inwhen = False
@@ -2464,7 +2524,7 @@ class Ati():
 
         else:
             session = self.session
-            tns = self.get_tnz()
+            tns = self.get_tnz(session)
             if tns and not tns.seslost and ati_rc != 14:
                 return False
 
@@ -2548,7 +2608,7 @@ class Ati():
                 raise AtiError("Used verifycert with old session")
 
             self.__gv["SESSION"] = unam
-            self.__refresh()
+            self.__ax_run(self.__refresh())
             if self.__sescheck(trace=False):
                 return
 
@@ -2575,8 +2635,10 @@ class Ati():
         self.__gv["SESSION"] = unam
 
         try:
-            tns = _tnz.connect(host, port, name=unam,
-                               secure=secure, verifycert=verifycert)
+            tns = self.__ax_run_callback(_tnz.connect,
+                                         host, port, name=unam,
+                                         secure=secure, verifycert=verifycert,
+                                         loop=self.__ax_event_loop())
 
         except Exception:
             tns = None
@@ -2627,7 +2689,7 @@ class Ati():
         if device_type:
             tns.terminal_type = device_type
 
-        self.__refresh()
+        self.__ax_run(self.__refresh())
         if not self.__sescheck(8, trace=False):
             self.rc = 0
 
@@ -2641,6 +2703,174 @@ class Ati():
             whenv = self.__gv[name]
 
         return whenv.pri[0]
+
+    def _pause_reading(self):
+        async def coro():
+            for tns in self.__session_tnz.values():
+                tns.pause_reading()
+            
+        return self.__ax_run(coro())
+
+    def _resume_reading(self):
+        async def coro():
+            for tns in self.__session_tnz.values():
+                tns.resume_reading()
+            
+        return self.__ax_run(coro())
+
+    def _ax_wait(self, timeout=None, zti=None, key=None):
+        async def wait():
+            for tns in self.__session_tnz.values():
+                tns.resume_reading()
+
+            tns = self.get_tnz()
+
+            try:
+                await tns.change(timeout, zti=zti, key=key)
+
+            finally:
+                for tns in self.__session_tnz.values():
+                    tns.pause_reading()
+
+        return self.__ax_run(wait())
+
+    def __ax_event_loop(self):
+        loop = self.__ax_loop
+        if not loop:
+            loop = _tnz.new_event_loop()
+            self.__ax_loop = loop
+            self.loop = loop
+
+        return loop
+
+    def __ax_run_callback(self, func, *args, **kwargs):
+        async def coro():
+            return func(*args, **kwargs)
+
+        return self.__ax_run(coro())
+
+    def ax_run(self, coro):
+        return self.__ax_run(coro)
+
+    def __ax_run(self, coro):
+        self.logwrt(f"__ax_run({coro})")
+        self.logwrt(f"__ax_run current thread: {threading.current_thread()}")
+        loop = self.__ax_event_loop()
+        need_thread = not self.__ax_thread
+        if need_thread:
+            self.__ax_thread_start(loop)
+
+        try:
+            self.logwrt(f"__ax_run({coro}) before __ax_run_in_thread")
+            return self.__ax_run_in_thread(coro, loop)
+
+        finally:
+            self.logwrt(f"__ax_run({coro}) finally")
+            if need_thread:
+                self.logwrt(f"__ax_run({coro}) before __ax_thread_stop()")
+                self.__ax_thread_stop(loop)
+
+    def __ax_thread_start(self, loop):
+        self.logwrt(f"__ax_thread_start({loop})")
+        self.logwrt(f"__ax_thread_start current thread: {threading.current_thread()}")
+        if self.__ax_thread:
+            self.logwrt(f"__ax_thread_start({loop}) -> already running")
+            return
+
+        name = "ati-asyncio-event-loop"
+        thread = threading.Thread(target=loop.run_forever, name=name)
+        self.__ax_queue = queue.Queue()
+        self.__ax_thread = thread
+        thread.start()
+        self.logwrt(f"__ax_thread_start({loop}) done")
+        self.logwrt(f"__ax_queue: {self.__ax_queue}")
+        self.logwrt(f"__ax_thread: {self.__ax_thread}")
+
+    def __ax_thread_stop(self, loop):
+        self.logwrt(f"__ax_thread_stop({loop})")
+        self.logwrt(f"__ax_thread_stop current thread: {threading.current_thread()}")
+        thread = self.__ax_thread
+        if not thread:
+            self.logwrt(f"__ax_thread_stop({loop}) => not running")
+            return
+
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join()
+        self.__ax_thread = None
+        self.__ax_queue = None
+
+    def __ax_run_in_thread(self, coro, loop):
+        self.logwrt(f"__ax_run_in_thread({loop})")
+        self.logwrt(f"__ax_run_in_thread current thread: {threading.current_thread()}")
+        current_queue = self.__ax_queue
+        async def coro_wrapper():
+            try:
+                self.logwrt(f"__ax_run_in_thread({coro}, {loop}) coro_wrapper before await coroutine")
+                return await coro
+
+            finally:
+                self.logwrt(f"__ax_run_in_thread({loop}) coro_wrapper finally")
+                current_queue.put((None, None, None))
+                self.logwrt(f"__ax_run_in_thread({loop}) coro_wrapper finally put on queue")
+
+        future = asyncio.run_coroutine_threadsafe(coro_wrapper(), loop)
+
+        while True:
+            try:
+                self.logwrt(f"__ax_run_in_thread({coro}, {loop}) before queue.get()")
+                self.logwrt(f"queue={current_queue}")
+                rval, excp, func = current_queue.get()
+                self.logwrt(f"__ax_run_in_thread({coro}, {loop}) after queue.get()")
+
+            except KeyboardInterrupt as err:
+                self.logwrt(f"__ax_run_in_thread({coro}, {loop}) KeyboardInterrupt, queue={current_queue}")
+                self.logwrt(f"__ax_run_in_thread({coro}, {loop}) queue is empty: {current_queue.empty()}")
+                loop.call_soon_threadsafe(future.cancel)
+                excp = err
+ 
+            if excp:
+                raise excp
+
+            if not func:
+                # TODO if cancelled, should be keyboard interrupt?
+                self.logwrt(f"__ax_run_in_thread({coro}, {loop}) => future.result()")
+                return future.result()
+
+            func()
+
+    async def __ax_run_sync(self, func, *args):
+        self.logwrt(f"__ax_run_sync({func},...)")
+        self.logwrt(f"__ax_run_sync current thread: {threading.current_thread()}")
+        assert self.__ax_thread  # only env supported for now
+        loop = self.__ax_event_loop()
+        if loop is not asyncio.get_event_loop():
+            raise RuntimeError("running in wrong loop")
+
+        complete = asyncio.Event()
+        rval = None
+        excp = None
+        def other_func():
+            nonlocal rval, excp
+            try:
+                rval = func(*args)
+
+            except BaseException as err:
+                excp = err
+
+            loop.call_soon_threadsafe(complete.set)
+
+        current_queue = self.__ax_queue
+        self.logwrt(f"__ax_run_sync({func}, ...) putting on queue")
+        self.logwrt(f"queue={current_queue}")
+        current_queue.put((None, None, other_func), timeout=3)
+        #current_queue.put((None, None, other_func, contextvars.copy_context()))
+        self.logwrt(f"__ax_run_sync({func}, ...) before await complete.wait")
+        await complete.wait()
+
+        if excp:
+            raise excp
+
+        return rval
 
     # static methods
 
@@ -2979,7 +3209,7 @@ class Ati():
                     self.__zti = zti.create()
 
                 if show and self.__zti and self.get_tnz():
-                    self.__zti.show()
+                    self.__zti.show()  # FIXME really need to make this sync?
 
             elif display in ("ALL", "HOST", "HOSTCODE"):
                 self.__shell_mode()
