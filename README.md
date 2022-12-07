@@ -7,6 +7,9 @@ https://img.shields.io/pypi/v/tnz.svg
 [![PyPi Downloads](
 https://img.shields.io/pypi/dm/tnz
 )](https://pypi.org/project/tnz)
+[![OpenSSF Best Practices](
+https://bestpractices.coreinfrastructure.org/projects/6762/badge
+)](https://bestpractices.coreinfrastructure.org/projects/6762)
 
 # tnz
 
