@@ -1,24 +1,23 @@
-[![CI Status](
-https://github.com/IBM/tnz/workflows/CI/badge.svg
-)](https://github.com/IBM/tnz/actions/workflows/pipeline.yml)
-[![PyPi Status](
-https://img.shields.io/pypi/v/tnz.svg
-)](https://pypi.org/project/tnz)
-[![PyPi Downloads](
-https://img.shields.io/pypi/dm/tnz
-)](https://pypi.org/project/tnz)
-[![OpenSSF Best Practices](
-https://bestpractices.coreinfrastructure.org/projects/6762/badge
-)](https://bestpractices.coreinfrastructure.org/projects/6762)
+---
+title: Introduction
+---
 
-# tnz
+Use a standard terminal emulator as a 3270 terminal interface. 
 
-Use a standard terminal emulator as a 3270 terminal interface. Write
-scripts to automate 3270 terminal interaction. This is both a 3270
-terminal emulator and a Python libary. The zti module provides a 3270
+Write
+scripts to automate 3270 terminal interaction.
+
+This is both a 3270
+terminal emulator and a Python libary. 
+
+The zti module provides a 3270
 user interface through a Windows Command Prompt or a unix/ascii
-terminal. The tnz module handles the interface to the 3270 data
-stream. The ati module allows for easier 3270 terminal automation.
+terminal. 
+
+The tnz module handles the interface to the 3270 data
+stream. 
+
+The ati module allows for easier 3270 terminal automation.
 
 #### Features
 * Runs on many platforms (including z/OS)
@@ -40,7 +39,8 @@ pip3 install ebcdic tnz
 
 ## Usage
 ### Automation
-See [examples](examples/) to get started writing a script to automate 3270 interaction.
+See [examples](https://github.com/IBM/tnz/blob/main/examples/) to get started writing a script to automate
+3270 interaction.
 
 ### Emulator
 Run the installed zti (Z Terminal Interface) script to start the
@@ -54,7 +54,7 @@ you can run zti with `python -m tnz.zti` instead.
 
 Starting `zti` takes you into the zti command line interface shell.
 Key tab for command completion, up/down for command history.
-![screenshot](docs/png/zti-prompt1.png "shell")
+![screenshot](https://github.com/IBM/tnz/blob/main/png/zti-prompt1.png?raw=true "shell")
 
 The `goto` command takes you to a full screen 3270 interface. When
 space is available in the terminal screen/window, a status line is
@@ -66,19 +66,19 @@ The basic syntax of `goto` is:
 goto fully-qualified-host-name[:port]
 ```
 
-![screenshot](docs/png/zti-host1.png "3270 full screen")
+![screenshot](png/zti-host1.png "3270 full screen")
 
 In Windows, the Lucida Console font works well with graphic character
 APL symbols exploited by ISPF.
-![screenshot](docs/png/zti-host2.png "Screenshot with APL symbols")
+![screenshot](png/zti-host2.png "Screenshot with APL symbols")
 
 Large and arbitrarily-sized screens are supported.
-![screenshot](docs/png/zti-host3.png "Screenshot with large size")
+![screenshot](png/zti-host3.png "Screenshot with large size")
 
 Standard unix/ascii terminals are supported. In the screenshot below,
 PuTTY is used as the terminal emulator. The connection was made from
 PuTTY to z/OS via ssh and zti is running on z/OS.
-![screenshot](docs/png/zti-host4.png "Screenshot using PuTTY")
+![screenshot](png/zti-host4.png?raw=true "Screenshot using PuTTY")
 
 The code in this repository aims to be portable. To achieve this, the
 number of dependencies is kept to a minimum. The only hard
@@ -126,13 +126,10 @@ fairly good at connecting like they are supposed to.
 
 ## Documentation
 
-<!-- TO-DO : update to main site once it's all active -->
-See [here](https://ijmitch.github.io/tnz/).
-
 For additional details, see docstrings in source code.
 
 ## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](https://github.com/IBM/tnz/blob/main/CONTRIBUTING.md).
 
 ## Acknowledgments
 Hats off to the team responsible for the IBM internal Automated Task

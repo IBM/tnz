@@ -1,0 +1,66 @@
+site_name: Tn3270 to Z Python library
+site_url: https://pages.github.com/IBM/tnz
+repo_url: https://github.com/IBM/tnz/
+edit_uri: edit/main/docs/ # required for GHE, theme will not do Enterprise automatically
+# Theme
+theme:
+  name: material
+  palette:
+    - primary: default
+      toggle:
+        icon: material/toggle-switch-off-outline 
+        name: Switch to dark mode
+    - scheme: slate 
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+  font:
+    text: 'IBM Plex Sans'
+    code: 'IBM Plex Mono'
+
+# Plugins
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+# Markdown extensions
+markdown_extensions:
+    - markdown.extensions.toc:
+        slugify: !!python/name:pymdownx.slugs.uslugify
+        permalink: §
+    - markdown.extensions.admonition:
+    - markdown.extensions.smarty:
+        smart_quotes: false
+    - pymdownx.betterem:
+    - pymdownx.critic:
+    - markdown.extensions.attr_list:
+    - markdown.extensions.def_list:
+    - markdown.extensions.tables:
+    - markdown.extensions.abbr:
+    - markdown.extensions.footnotes:
+    - markdown.extensions.md_in_html:
+    - pymdownx.superfences:
+        preserve_tabs: true
+    - pymdownx.highlight:
+        css_class: codehilite
+        linenums_style: pymdownx-inline
+    - pymdownx.tilde:
+    - pymdownx.caret:
+    - pymdownx.smartsymbols:
+    - pymdownx.emoji:
+        emoji_generator: !!python/name:pymdownx.emoji.to_png
+    - pymdownx.escapeall:
+        hardbreak: true
+        nbsp: true
+    - pymdownx.tasklist:
+        custom_checkbox: true
+    - pymdownx.progressbar:
+    - pymdownx.mark:
+    - pymdownx.striphtml:
+    - pymdownx.keys:
+        separator: "\uff0b"
+    - pymdownx.details:
+    - pymdownx.tabbed:
+
+copyright: Copyright &copy; IBM 2022
