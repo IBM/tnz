@@ -54,7 +54,7 @@ you can run zti with `python -m tnz.zti` instead.
 
 Starting `zti` takes you into the zti command line interface shell.
 Key tab for command completion, up/down for command history.
-![screenshot](https://github.com/IBM/tnz/blob/main/png/zti-prompt1.png?raw=true "shell")
+![screenshot](png/zti-prompt1.png "shell")
 
 The `goto` command takes you to a full screen 3270 interface. When
 space is available in the terminal screen/window, a status line is

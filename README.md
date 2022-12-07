@@ -126,8 +126,7 @@ fairly good at connecting like they are supposed to.
 
 ## Documentation
 
-<!-- TO-DO : update to main site once it's all active -->
-See [here](https://ijmitch.github.io/tnz/).
+See [here](https://ibm.github.io/tnz/).
 
 For additional details, see docstrings in source code.
 
