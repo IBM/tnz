@@ -1,5 +1,5 @@
 site_name: Tn3270 to Z Python library
-site_url: https://pages.github.com/IBM/tnz
+site_url: https://ibm.github.io/tnz
 repo_url: https://github.com/IBM/tnz/
 edit_uri: edit/main/docs/ # required for GHE, theme will not do Enterprise automatically
 # Theme
