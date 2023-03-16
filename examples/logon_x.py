@@ -3,7 +3,7 @@ from tnz.py3270 import Emulator
 em = Emulator(visible=True, args=["-trace",
                                   "-tracefile",
                                   "example.log"])
-em.connect('xrfmcl')
+em.connect('mvs1')
 
 
 def string_wait(string):
@@ -17,7 +17,7 @@ def string_wait(string):
 
 
 string_wait("Enter:  ")
-em.send_string("xrfmcl userid\\n")
+em.send_string("app1 userid\\n")
 
 string_wait("Password  ===> ")
 em.send_string("password\\n")
