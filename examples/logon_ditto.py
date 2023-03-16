@@ -6,11 +6,11 @@ ati.set("LOGDEST", "example.log")
 
 dit = Ditto()
 
-ati.set("SESSION_HOST", "xrfmcl")
+ati.set("SESSION_HOST", "mvs1")
 ati.set("SESSION", "A")
 
 dit.verify("A", "Enter:  ")
-dit.enter_after("A", "Enter:  ", "xrfmcl userid")
+dit.enter_after("A", "Enter:  ", "app1 userid")
 dit.verify("A", "Password  ===> ")
 dit.enter_after("A", "Password  ===> ", "password")
 

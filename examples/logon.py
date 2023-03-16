@@ -5,11 +5,11 @@ ati.set("LOGDEST", "example.log")
 
 ati.set("ONERROR", "1")
 ati.set("DISPLAY", "HOST")
-ati.set("SESSION_HOST", "xrfmcl")
+ati.set("SESSION_HOST", "mvs1")
 ati.set("SESSION", "A")
 
 ati.wait(lambda: ati.scrhas("Enter:  "))
-ati.send("xrfmcl userid[enter]")
+ati.send("app1 userid[enter]")
 ati.wait(lambda: ati.scrhas("Password  ===> "))
 ati.send("password[enter]")
 
