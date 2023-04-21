@@ -686,6 +686,11 @@ class Tnz:
 
                 while (not self.__ddmmsg and not self.seslost):
                     self.wait(3)  # query reply, command acknowledge
+
+                # error if not 'TRANS03   File transfer complete$'
+                if not f"{self.__ddmmsg}".startswith("TRANS03"):
+                    raise TnzTransferError(self.__ddmmsg)
+
         finally:
             self.__log_debug("clearing __indsfile")
             self.__indsfile = None
@@ -1474,6 +1479,10 @@ class Tnz:
 
                 if self.__ddmerr:
                     raise TnzTransferError(self.__ddmerr)
+
+                # error if not 'TRANS03   File transfer complete$'
+                if not f"{self.__ddmmsg}".startswith("TRANS03"):
+                    raise TnzTransferError(self.__ddmmsg)
 
         finally:
             self.__log_debug("clearing __indsfile")
