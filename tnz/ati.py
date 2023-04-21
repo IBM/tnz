@@ -356,6 +356,11 @@ class Ati():
         self.__inwhen = False
         self.__ranwhen = False
 
+        for name, value in os.environ.items():
+            if name == "SESSION24" or name.startswith("SESSION_"):
+                if name.isupper():
+                    self.__uv[name] = value
+
     # public methods
 
     def drop(self, *args):
@@ -724,6 +729,12 @@ class Ati():
             if share_sessions:
                 new_ati.__session_tnz = self.__session_tnz
                 new_ati.__gv["SESSION"] = self.session
+
+        for name, value in self.__uv.items():
+            if name == "SESSION24" or name.startswith("SESSION_"):
+                if name.isupper():
+                    if name not in new_ati.__gv:
+                        new_ati.__uv[name] = value
 
         return new_ati
 
