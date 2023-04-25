@@ -4292,27 +4292,32 @@ class Tnz:
                     attr = self.plane_eh[addr]
                     if attr:  # if not default
                         sfe[1] += 1
-                        sfe.append(0x41, attr)
+                        sfe.append(0x41)
+                        sfe.append(attr)
 
                     attr = self.plane_fg[addr]
                     if attr:  # if not default
                         sfe[1] += 1
-                        sfe.append(0x42, attr)
+                        sfe.append(0x42)
+                        sfe.append(attr)
 
                     attr = self.plane_cs[addr]
                     if attr:  # if not default
                         sfe[1] += 1
-                        sfe.append(0x43, attr)
+                        sfe.append(0x43)
+                        sfe.append(attr)
 
                     attr = self.plane_bg[addr]
                     if attr:  # if not default
                         sfe[1] += 1
-                        sfe.append(0x45, attr)
+                        sfe.append(0x45)
+                        sfe.append(attr)
 
                     if sfe[1] != 0x40:  # if not default`
                         if fattr:
                             sfe[1] += 1
-                            sfe.append(0xc0, fattr)
+                            sfe.append(0xc0)
+                            sfe.append(fattr)
 
                         sfb = sfe
 
