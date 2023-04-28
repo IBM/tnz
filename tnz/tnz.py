@@ -23,6 +23,7 @@ import os
 import platform
 import re
 import ssl
+import subprocess
 import sys
 from . import __version__
 
@@ -2626,7 +2627,12 @@ class Tnz:
 
                 try:
                     if ddmupload and cmd and not filename:
-                        self.__indsfile = os.popen(cmd)
+                        proc = subprocess.Popen(cmd, text=True,
+                                                stdin=subprocess.DEVNULL,
+                                                stdout=subprocess.PIPE,
+                                                stderr=subprocess.STDOUT,
+                                                shell=True)
+                        self.__indsfile = proc.stdout
                     elif filename:
                         self.__indsfile = open(filename, mode)
 
@@ -2954,7 +2960,6 @@ class Tnz:
                         if cmd and not nowait:
                             os.system(cmd)
                         elif cmd and nowait:
-                            import subprocess
                             subprocess.Popen(cmd,
                                              stdin=None,
                                              stdout=None,
