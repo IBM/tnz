@@ -21,7 +21,7 @@ command line string.
 Environment variables used:
     COLORTERM (see _termlib.py)
     ESCDELAY
-    SESSION_PS_SIZE (see tnz.py)
+    SESSION_PS_SIZE
     TERM_PROGRAM (see _termlib.py)
     TNZ_COLORS (see tnz.py)
     TNZ_LOGGING (see tnz.py)
@@ -30,7 +30,7 @@ Environment variables used:
     ZTI_TITLE
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021, 2022 IBM Inc. All Rights Reserved.
+Copyright 2021, 2023 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -63,10 +63,10 @@ import traceback
 
 from . import _sigx as sigx
 from ._termlib import Term as curses
-from ._util import session_ps_14bit
 from . import ati
 from . import rexx
 from . import tnz
+from . import _util
 from . import __version__
 
 __author__ = "Neil Johnson"
@@ -507,31 +507,9 @@ class Zti(cmd.Cmd):
             oldsize = ati.ati["SESSION_PS_SIZE"]
             newsize = oldsize
             if not oldsize:
-                if os.getenv("SESSION_PS_SIZE") == "MAX":
-                    (columns, lines) = os.get_terminal_size()
-                    lines -= 4
-                    columns = min(columns - 17, 160)
-                    lines, columns = session_ps_14bit(lines, columns)
-                    newsize = f"{lines}x{columns}"
-                    ati.set("SESSION_PS_SIZE", newsize)
-                elif os.getenv("SESSION_PS_SIZE") == "MAX255":
-                    (columns, lines) = os.get_terminal_size()
-                    lines -= 4
-                    columns = max(columns - 17, 255)
-                    lines, columns = session_ps_14bit(lines, columns)
-                    newsize = f"{lines}x{columns}"
-                    ati.set("SESSION_PS_SIZE", newsize)
-                elif os.getenv("SESSION_PS_SIZE") == "FULL":
-                    (columns, lines) = os.get_terminal_size()
-                    columns = min(columns, 160)  # 160 for ispf
-                    lines, columns = session_ps_14bit(lines, columns)
-                    newsize = f"{lines}x{columns}"
-                    ati.set("SESSION_PS_SIZE", newsize)
-                elif os.getenv("SESSION_PS_SIZE") == "FULL255":
-                    (columns, lines) = os.get_terminal_size()
-                    columns = min(columns, 255)
-                    lines, columns = session_ps_14bit(lines, columns)
-                    newsize = f"{lines}x{columns}"
+                ps_size = os.getenv("SESSION_PS_SIZE", None)
+                if ps_size:
+                    newsize = ps_size
                     ati.set("SESSION_PS_SIZE", newsize)
 
             ati.ati.session = new_session
@@ -3624,6 +3602,36 @@ HELP and HELP KEYS commands for more information.
                               actdone,
                               actcmd,
                               stat))
+
+    # Private static methods
+
+    @staticmethod
+    def _rows_cols(session_ps_size):
+        """rows, cols for SESSION_PS_SIZE value
+        """
+        if session_ps_size == "MAX":
+            columns, lines = os.get_terminal_size()
+            lines -= 4
+            columns = min(columns - 17, 160)
+            return _util.session_ps_14bit(lines, columns)
+
+        if session_ps_size == "MAX255":
+            columns, lines = os.get_terminal_size()
+            lines -= 4
+            columns = max(columns - 17, 255)
+            return _util.session_ps_14bit(lines, columns)
+
+        if session_ps_size == "FULL":
+            columns, lines = os.get_terminal_size()
+            columns = min(columns, 160)  # 160 for ispf
+            return _util.session_ps_14bit(lines, columns)
+
+        if session_ps_size == "FULL255":
+            columns, lines = os.get_terminal_size()
+            columns = min(columns, 255)
+            return _util.session_ps_14bit(lines, columns)
+
+        return _util.session_ps_size(session_ps_size)
 
     # Internal data and other attributes
 

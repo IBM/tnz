@@ -11,7 +11,7 @@ Environment variables used:
     TNZ_LOGGING
     ZTI_SECLEVEL
 
-Copyright 2021 IBM Inc. All Rights Reserved.
+Copyright 2021, 2023 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -251,7 +251,7 @@ class Tnz:
             self.capable_color = True
 
         ps_size = os.getenv("SESSION_PS_SIZE", None)
-        if ps_size:
+        if ps_size not in (None, "MAX", "MAX255", "FULL", "FULL255"):
             try:
                 from . import _util
                 asize = _util.session_ps_size(ps_size)

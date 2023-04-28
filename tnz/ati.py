@@ -79,7 +79,7 @@ Environment variables used:
     COLORTERM (see _termlib.py)
     DATEFORM
     ESCDELAY (see zti.py)
-    SESSION_PS_SIZE (see tnz.py)
+    SESSION_PS_SIZE
     TERM_PROGRAM (see _termlib.py)
     TNZ_COLORS (see tnz.py)
     TNZ_LOGGING (see tnz.py)
@@ -88,7 +88,7 @@ Environment variables used:
     ZTI_TITLE (see zti.py)
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021 IBM Inc. All Rights Reserved.
+Copyright 2021, 2023 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -2607,7 +2607,12 @@ class Ati():
         if ps_size:
             self.__logresult("%s = %r", "SESSION_PS_SIZE", ps_size)
             try:
-                asize = _util.session_ps_size(ps_size)
+                if ps_size in ("MAX", "MAX255", "FULL", "FULL255"):
+                    from .zti import Zti
+                    asize = Zti._rows_cols(ps_size)
+                else:
+                    asize = _util.session_ps_size(ps_size)
+
                 tns.amaxrow, tns.amaxcol = asize
             except ValueError:
                 pass
