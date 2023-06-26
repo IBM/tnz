@@ -92,6 +92,7 @@ Copyright 2021, 2023 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import asyncio
 import functools
 import inspect
 import logging
@@ -355,6 +356,8 @@ class Ati():
         self.__session_tnz = {}
         self.__inwhen = False
         self.__ranwhen = False
+        self.__event = None
+        self.__loop = None
 
         for name, value in os.environ.items():
             if name == "SESSION24" or name.startswith("SESSION_"):
@@ -670,6 +673,16 @@ class Ati():
         self.__logresult("%s", self.__snip(scrstr[start:end]))
         return rval
 
+    def get_asyncio_event_loop(self):
+        """Return the asyncio event and loop as a tuple.
+        """
+        loop = self.__loop
+        if not loop:
+            loop = _tnz.new_asyncio_event_loop()
+            self.__loop = loop
+
+        return self.__event, loop
+
     def get_tnz(self, name=None):
         """Return session Tnz instance.
 
@@ -712,6 +725,7 @@ class Ati():
         elif share_sessions is False:
             share = False
 
+        _, loop = self.get_asyncio_event_loop()  # initialize/get
         if share:  # share globals (and internal variables)
             self.__log_check()
             import copy
@@ -723,9 +737,11 @@ class Ati():
             new_ati.__pgm_number = new_ati.__gv["pgm_seed"]
             new_ati.__inwhen = False
             new_ati.__ranwhen = False
+            new_ati.__event = None
 
         else:  # do not share globals (nor internal variables)
             new_ati = Ati()
+            new_ati.__loop = loop
             if share_sessions:
                 new_ati.__session_tnz = self.__session_tnz
                 new_ati.__gv["SESSION"] = self.session
@@ -2475,7 +2491,7 @@ class Ati():
 
         else:
             session = self.session
-            tns = self.get_tnz()
+            tns = self.get_tnz(session)
             if tns and not tns.seslost and ati_rc != 14:
                 return False
 
@@ -2585,17 +2601,32 @@ class Ati():
 
         self.__gv["SESSION"] = unam
 
-        try:
-            tns = _tnz.connect(host, port, name=unam,
-                               secure=secure, verifycert=verifycert)
+        tns = None
+        _, loop = self.get_asyncio_event_loop()
 
-        except Exception:
-            tns = None
-            logger = self.__gv["logger"]
-            logger.exception("Connect Error")
-            if self.connected:
-                self.__shell_mode()
-                traceback.print_exc()
+        def connect():
+            # run in context of loop to establish proper loop
+            nonlocal tns
+            event = self.__event
+            if not event:
+                event = asyncio.Event()
+                self.__event = event
+
+            try:
+                tns = _tnz.connect(host, port, name=unam,
+                                   secure=secure, verifycert=verifycert,
+                                   event=event)
+
+            except Exception:
+                logger = self.__gv["logger"]
+                logger.exception("Connect Error")
+                if self.connected:
+                    self.__shell_mode()
+                    traceback.print_exc()
+
+        loop.call_soon(connect)
+        loop.stop()
+        loop.run_forever()
 
         if not tns:
             self.__sescheck(8, trace=False)

@@ -61,7 +61,6 @@ import threading
 import time
 import traceback
 
-from . import _sigx as sigx
 from ._termlib import Term as curses
 from . import ati
 from . import rexx
@@ -129,8 +128,8 @@ class Zti(cmd.Cmd):
         self.twin_beg = None
         self.twin_loc = None
         self.twin_end = None
-        self.__lock = threading.Lock()
-        self.__bg = False
+        self.__loop = None
+        self.__winch = False
         self.__thread = None
         self.__tty_mode = 0  # 0=shell, 1=prog
         self.__has_color = None
@@ -159,12 +158,13 @@ class Zti(cmd.Cmd):
         self.__sessel = []
 
         self.__stdin_selected = False
+        self.__handling = set()
         if _osname == "Windows":
             self.__stdin_selectr = None
-            self.__sigwinch_selected = False
+            self.__signals = self.__handling
         else:
             self.__stdin_selectr = self.__stdin
-            self.__sigwinch_selected = True
+            self.__signals = {signal.SIGWINCH, signal.SIGTSTP}
 
         if self._zti is None:
             Zti._zti = self
@@ -1382,44 +1382,22 @@ HELP and HELP KEYS commands for more information.
 
     # Private methods
 
-    def __bg_wait(self, ztl):
-        """Keep sessions alive
-           while at the command prompt.
-        """
-        while True:
-            with self.__lock:
-                if not ztl:
-                    self.__bg = False
-
-                if not self.__bg:
-                    return
-
-            tns = ztl.pop(0)
-            if not tns.seslost:
-                tns.wait()
-
-            if not tns.seslost:
-                ztl.append(tns)
-
     def __bg_wait_start(self):
         """Ensure the background
            thread is running to keep
            sessions alive while at
            the command prompt.
         """
-        with self.__lock:
-            if self.__bg:
-                return  # already running
+        if self.__thread:
+            return  # already running
 
-        sessions = ati.ati.sessions.split()
-        if not sessions:
+        if not ati.ati.sessions:
             return  # no sessions
 
-        self.__bg = True
-        ztl = [ati.ati.get_tnz(session) for session in sessions]
-        self.__thread = threading.Thread(target=self.__bg_wait,
-                                         args=(ztl,))
-        self.__thread.start()
+        _, loop = ati.ati.get_asyncio_event_loop()
+        thread = threading.Thread(target=loop.run_forever)
+        self.__thread = thread
+        thread.start()
 
     def __bg_wait_end(self):
         """Ensure the background
@@ -1431,15 +1409,15 @@ HELP and HELP KEYS commands for more information.
            so that application
            can shut down.
         """
-        if self.__thread is None:
+        thread = self.__thread
+        if not thread:
             return  # not running
 
-        self.__lock.acquire()
-        self.__bg = False
-        self.__lock.release()
+        _, loop = ati.ati.get_asyncio_event_loop()
+        if loop:
+            loop.call_soon_threadsafe(loop.stop)
 
-        tnz.wakeup_wait()
-        self.__thread.join()
+        thread.join()
         self.__thread = None
 
     def __clean_range(self, start, end):
@@ -1783,11 +1761,9 @@ HELP and HELP KEYS commands for more information.
         selectr = self.__stdin_selectr
         if selectr and self.__stdin_selected:
             self.__stdin_selected = False
-            tnz.selector_del(selectr)
+            self.__selector_del(selectr)
 
-        if _osname != "Windows":
-            sigx.del_handler(tnz.wakeup_wait)
-
+        self.__remove_signal_handlers()
         curses.endwin()
 
     def __install_plugins(self):
@@ -1882,10 +1858,11 @@ HELP and HELP KEYS commands for more information.
         if selectr is not old_selectr:
             if stdin_selected:
                 self.__stdin_selected = False
-                tnz.selector_del(old_selectr)
+                self.__selector_del(old_selectr)
 
             if selectr:
-                tnz.selector_set(selectr, data=self)
+                event, loop = ati.ati.get_asyncio_event_loop()
+                loop.add_reader(selectr, event.set)
                 self.__stdin_selected = True
 
         self.__stdin_selectr = selectr
@@ -1966,9 +1943,7 @@ HELP and HELP KEYS commands for more information.
             self.__stdout.write("\x1b[?2004h")  # bracketed paste ON
             self.__stdout.flush()
 
-        if self.__sigwinch_selected:
-            sigx.add_handler(signal.SIGWINCH, tnz.wakeup_wait)
-
+        self.__add_signal_handlers()
         self.rewrite = True
         self.__tty_mode = 1
 
@@ -2137,14 +2112,11 @@ HELP and HELP KEYS commands for more information.
                     _logger.warning("KEY_RESIZE")
 
                     self.rewrite = True
-                    try:
-                        curses.resize_term(0, 0)  # hack for Windows
-                    except Exception:
-                        pass
-
+                    self.__winch = False
+                    columns, lines = os.get_terminal_size()
                     (maxy, maxx) = win.getmaxyx()
-                    (columns, lines) = os.get_terminal_size()
                     if (maxy != lines) or (maxx != columns):
+                        curses.resize_term(lines, columns)
                         win.resize(lines, columns)
                         win.erase()
                         win.noutrefresh()
@@ -2882,6 +2854,10 @@ HELP and HELP KEYS commands for more information.
 
         return srows, scols
 
+    def __selector_del(self, fileno):
+        _, loop = ati.ati.get_asyncio_event_loop()
+        loop.remove_reader(fileno)
+
     def __session_check(self):
         while 1:
             seslost = ati.ati.seslost
@@ -3034,6 +3010,53 @@ HELP and HELP KEYS commands for more information.
                 attr = curses.color_pair(color_pair)
                 self.cv2attr[(fgid, bgid)] = attr
 
+    def __signal_handler(self, signum):
+        if signum == signal.SIGTSTP:
+            self.__shell_mode()
+            os.kill(os.getpid(), signal.SIGSTOP)
+            self.__prog_mode()
+
+        self.__winch = True
+        event, _ = ati.ati.get_asyncio_event_loop()
+        event.set()
+
+    def __add_signal_handlers(self):
+        signals = self.__signals
+        if not signals:
+            return
+
+        handling = self.__handling
+        _, loop = ati.ati.get_asyncio_event_loop()
+        set_handler = loop.add_signal_handler
+        new_hand = self.__signal_handler
+        getsignal = signal.getsignal
+        special_handlers = set(signal.Handlers)
+        try:
+            for signum in signals:
+                old_hand = getsignal(signum)
+                if old_hand not in special_handlers:
+                    _logger.warning("%r -> %r", signum, old_hand)
+
+                else:
+                    set_handler(signum, new_hand, signum)
+                    handling.add(signum)
+
+        finally:
+            signals -= handling
+
+    def __remove_signal_handlers(self):
+        handling = self.__handling
+        if not handling:
+            return
+
+        self.__signals |= handling
+        signals = handling.copy()
+        handling.clear()
+        _, loop = ati.ati.get_asyncio_event_loop()
+        remove = loop.remove_signal_handler
+        for signum in signals:
+            remove(signum)
+
     def __shell_mode(self, init=False):
         """Set the TTY to shell mode.
 
@@ -3135,9 +3158,13 @@ HELP and HELP KEYS commands for more information.
 
                 if other_selected:
                     # must be for wakeup_fd
+                    if self.__winch:
+                        return "KEY_RESIZE"
+
                     return True
 
-                waitrv = self.__wait(tns, tout, zti=self)
+                self.__prep_wait()
+                waitrv = tns.wait(tout, zti=self)
                 if waitrv is True:
                     return ""
 
@@ -3273,10 +3300,6 @@ HELP and HELP KEYS commands for more information.
 
         if self.__in_script:
             self.prompt = "(paused) "+self.prompt
-
-    def __wait(self, tns, timeout=0, zti=None, key=None):
-        self.__prep_wait()
-        return tns.wait(timeout, zti=zti, key=key)
 
     def __write_blanks(self, tns, saddr, eaddr):
         """call to write where field attributes are
