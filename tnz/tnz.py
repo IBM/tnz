@@ -3785,13 +3785,7 @@ class Tnz:
     def __get_event_loop(self):
         loop = self.__loop
         if not loop:
-            if platform.system() == "Windows":
-                # default policy does not support add_reader
-                pol = asyncio.WindowsSelectorEventLoopPolicy()
-                asyncio.set_event_loop_policy(pol)
-
             loop = asyncio.get_event_loop()
-
             self.__loop = loop
 
         return loop
@@ -4889,15 +4883,3 @@ def connect(host=None, port=None,
     tnz.connect(host, port, secure=secure, verifycert=verifycert,
                 event=event)
     return tnz
-
-
-def new_asyncio_event_loop():
-    """Return a new asyncio event loop suitable for use with Tnz.
-    """
-    if platform.system() == "Windows":
-        # default Windows policy does not support add_reader
-        policy = asyncio.WindowsSelectorEventLoopPolicy()
-    else:
-        policy = asyncio.get_event_loop_policy()
-
-    return policy.new_event_loop()

@@ -678,7 +678,8 @@ class Ati():
         """
         loop = self.__loop
         if not loop:
-            loop = _tnz.new_asyncio_event_loop()
+            loop = asyncio.get_event_loop()
+            self.__event = asyncio.Event()
             self.__loop = loop
 
         return self.__event, loop
@@ -725,7 +726,7 @@ class Ati():
         elif share_sessions is False:
             share = False
 
-        _, loop = self.get_asyncio_event_loop()  # initialize/get
+        event, loop = self.get_asyncio_event_loop()  # initialize/get
         if share:  # share globals (and internal variables)
             self.__log_check()
             import copy
@@ -737,12 +738,12 @@ class Ati():
             new_ati.__pgm_number = new_ati.__gv["pgm_seed"]
             new_ati.__inwhen = False
             new_ati.__ranwhen = False
-            new_ati.__event = None
 
         else:  # do not share globals (nor internal variables)
             new_ati = Ati()
             new_ati.__loop = loop
             if share_sessions:
+                new_ati.__event = event
                 new_ati.__session_tnz = self.__session_tnz
                 new_ati.__gv["SESSION"] = self.session
 
@@ -2600,22 +2601,18 @@ class Ati():
             self.__logresult("%s = %r", "SESSION_SSL", secure)
 
         self.__gv["SESSION"] = unam
-
         tns = None
-        _, loop = self.get_asyncio_event_loop()
 
         def connect():
             # run in context of loop to establish proper loop
             nonlocal tns
-            event = self.__event
-            if not event:
-                event = asyncio.Event()
-                self.__event = event
+            if not self.__loop:
+                self.__event = asyncio.Event()
 
             try:
                 tns = _tnz.connect(host, port, name=unam,
                                    secure=secure, verifycert=verifycert,
-                                   event=event)
+                                   event=self.__event)
 
             except Exception:
                 logger = self.__gv["logger"]
@@ -2624,9 +2621,14 @@ class Ati():
                     self.__shell_mode()
                     traceback.print_exc()
 
+        loop = self.__loop
+        if not loop:
+            loop = asyncio.new_event_loop()
+
         loop.call_soon(connect)
         loop.stop()
         loop.run_forever()
+        self.__loop = loop
 
         if not tns:
             self.__sescheck(8, trace=False)

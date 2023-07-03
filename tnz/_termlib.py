@@ -393,7 +393,7 @@ class Term():
         self.__pendmove = True
 
     @_log_errors
-    def refresh(self):
+    def refresh(self, *, _win_callback=None):
         """Refresh program screen.
         """
         pendlist = self.__pendlist
@@ -414,6 +414,7 @@ class Term():
             self.reset_prog_mode()
 
             if _osname == "Windows":
+                Term.__win_callback = _win_callback
                 self.__run_thread()
 
             if self.__pendtext:
@@ -1112,6 +1113,7 @@ class Term():
             cls.__alt_screen = False
 
         cls.__stop_thread()
+        cls.__win_callback = None
         cls.__flash_resize = False
         cls.__flash_reverse = False
         cls.reset_shell_mode()
@@ -1246,9 +1248,7 @@ class Term():
         cls.__termo_fd = termo_fd
 
         cls.__lock = None
-        cls.selectr = termi  # special to account for Windows
         if _osname == "Windows":
-            cls.selectr = None
             k32 = ctypes.windll.kernel32
             # STD_INPUT_HANDLE=-10
             # STD_OUTPUT_HANDLE=-11
@@ -1633,8 +1633,6 @@ class Term():
             cls.__thread = thread
             thread.start()
 
-            cls.selectr = sockr  # special to account for Windows
-
     @classmethod
     def __set_console_mode(cls, handle, mode):
         _logger.debug("__set_console_mode(%r, %04x)", handle, mode)
@@ -1721,7 +1719,6 @@ class Term():
 
         # fourth, cleanup
 
-        cls.selectr = None
         sockw = cls.__socketw
         sockr = cls.__socketr
         cls.__socketr = None
@@ -1737,6 +1734,7 @@ class Term():
         termi = cls.__termi.buffer
         sock = cls.__socketw
         lock = cls.__lock
+        callback = cls.__win_callback
         while True:
             lock.acquire()
             run = bool(cls.__thread)
@@ -1764,6 +1762,9 @@ class Term():
             except ConnectionResetError:
                 _logger.exception("need to rebuild socketpair")
                 return
+
+            if callback:
+                callback()
 
     # Static methods
 
@@ -1840,6 +1841,7 @@ class Term():
     __termi_fd = None
     __termo = None
     __thread = None
+    __win_callback = None
 
     __stdscr = None
 
