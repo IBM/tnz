@@ -61,7 +61,6 @@ import threading
 import time
 import traceback
 
-from . import _sigx as sigx
 from ._termlib import Term as curses
 from . import ati
 from . import rexx
@@ -129,8 +128,8 @@ class Zti(cmd.Cmd):
         self.twin_beg = None
         self.twin_loc = None
         self.twin_end = None
-        self.__lock = threading.Lock()
-        self.__bg = False
+        self.__loop = None
+        self.__winch = False
         self.__thread = None
         self.__tty_mode = 0  # 0=shell, 1=prog
         self.__has_color = None
@@ -159,12 +158,11 @@ class Zti(cmd.Cmd):
         self.__sessel = []
 
         self.__stdin_selected = False
+        self.__handling = set()
         if _osname == "Windows":
-            self.__stdin_selectr = None
-            self.__sigwinch_selected = False
+            self.__signals = self.__handling
         else:
-            self.__stdin_selectr = self.__stdin
-            self.__sigwinch_selected = True
+            self.__signals = {signal.SIGWINCH, signal.SIGTSTP}
 
         if self._zti is None:
             Zti._zti = self
@@ -1236,7 +1234,7 @@ HELP KEYS commands for more information.
             text = text[:xpos2-xpos1]
 
         self.__tty_write(maxy-1, xpos3, text, 0)
-        self.stdscr.refresh()
+        self.stdscr.refresh(_win_callback=self.__set_event_fn())
         return True
 
     def wait(self, timeout=0, keylock=False):
@@ -1382,44 +1380,22 @@ HELP and HELP KEYS commands for more information.
 
     # Private methods
 
-    def __bg_wait(self, ztl):
-        """Keep sessions alive
-           while at the command prompt.
-        """
-        while True:
-            with self.__lock:
-                if not ztl:
-                    self.__bg = False
-
-                if not self.__bg:
-                    return
-
-            tns = ztl.pop(0)
-            if not tns.seslost:
-                tns.wait()
-
-            if not tns.seslost:
-                ztl.append(tns)
-
     def __bg_wait_start(self):
         """Ensure the background
            thread is running to keep
            sessions alive while at
            the command prompt.
         """
-        with self.__lock:
-            if self.__bg:
-                return  # already running
+        if self.__thread:
+            return  # already running
 
-        sessions = ati.ati.sessions.split()
-        if not sessions:
+        if not ati.ati.sessions:
             return  # no sessions
 
-        self.__bg = True
-        ztl = [ati.ati.get_tnz(session) for session in sessions]
-        self.__thread = threading.Thread(target=self.__bg_wait,
-                                         args=(ztl,))
-        self.__thread.start()
+        _, loop = ati.ati.get_asyncio_event_loop()
+        thread = threading.Thread(target=loop.run_forever)
+        self.__thread = thread
+        thread.start()
 
     def __bg_wait_end(self):
         """Ensure the background
@@ -1431,15 +1407,13 @@ HELP and HELP KEYS commands for more information.
            so that application
            can shut down.
         """
-        if self.__thread is None:
+        thread = self.__thread
+        if not thread:
             return  # not running
 
-        self.__lock.acquire()
-        self.__bg = False
-        self.__lock.release()
-
-        tnz.wakeup_wait()
-        self.__thread.join()
+        _, loop = ati.ati.get_asyncio_event_loop()
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join()
         self.__thread = None
 
     def __clean_range(self, start, end):
@@ -1779,17 +1753,6 @@ HELP and HELP KEYS commands for more information.
 
         _logger.debug("end __display")
 
-    def __endwin(self):
-        selectr = self.__stdin_selectr
-        if selectr and self.__stdin_selected:
-            self.__stdin_selected = False
-            tnz.selector_del(selectr)
-
-        if _osname != "Windows":
-            sigx.del_handler(tnz.wakeup_wait)
-
-        curses.endwin()
-
     def __install_plugins(self):
         try:
             from importlib.metadata import entry_points
@@ -1867,29 +1830,6 @@ HELP and HELP KEYS commands for more information.
             curses.beep()
             _logger.exception("cannot encode")
 
-    def __prep_wait(self):
-        if hasattr(curses, "selectr"):
-            selectr = curses.selectr
-        else:
-            selectr = self.__stdin_selectr
-
-        stdin_selected = self.__stdin_selected
-        if stdin_selected:
-            old_selectr = self.__stdin_selectr
-        else:
-            old_selectr = None
-
-        if selectr is not old_selectr:
-            if stdin_selected:
-                self.__stdin_selected = False
-                tnz.selector_del(old_selectr)
-
-            if selectr:
-                tnz.selector_set(selectr, data=self)
-                self.__stdin_selected = True
-
-        self.__stdin_selectr = selectr
-
     def __prog_mode(self):
         """Set the TTY to prog mode.
 
@@ -1901,6 +1841,14 @@ HELP and HELP KEYS commands for more information.
         if self.autosize:
             (columns, lines) = os.get_terminal_size()
             self.autosize = (lines, columns)
+
+        # Set up for event to get set when stdin is ready.
+        # Further below, _win_callback will be used for Windows.
+        # Event loop on Windows may not support add_reader.
+        if not self.__stdin_selected and _osname != "Windows":
+            event, loop = ati.ati.get_asyncio_event_loop()
+            loop.add_reader(self.__stdin, event.set)
+            self.__stdin_selected = True
 
         if not self.stdscr:
             # Initialize curses
@@ -1927,7 +1875,7 @@ HELP and HELP KEYS commands for more information.
                 curses.cbreak()
                 curses.noecho()
                 curses.def_prog_mode()
-                self.__endwin()
+                curses.endwin()
 
                 self.stdscr.keypad(True)
                 self.stdscr.notimeout(0)  # faster ESC?
@@ -1944,13 +1892,13 @@ HELP and HELP KEYS commands for more information.
 
             except Exception:
                 if self.stdscr:
-                    self.__endwin()
+                    curses.endwin()
                     self.stdscr = None
 
                 raise
         else:
             self.stdscr.clear()  # avoid showing old screen
-            self.stdscr.refresh()  # for above clear
+            self.stdscr.refresh(_win_callback=self.__set_event_fn())
             # TODO only set up mouse if NOT "show" mode?
             mousemask = (curses.BUTTON1_CLICKED |
                          curses.BUTTON1_DOUBLE_CLICKED)
@@ -1966,8 +1914,21 @@ HELP and HELP KEYS commands for more information.
             self.__stdout.write("\x1b[?2004h")  # bracketed paste ON
             self.__stdout.flush()
 
-        if self.__sigwinch_selected:
-            sigx.add_handler(signal.SIGWINCH, tnz.wakeup_wait)
+        signals = self.__signals
+        if signals:
+            new_hand = self.__signal_handler
+            event, loop = ati.ati.get_asyncio_event_loop()
+            set_handler = loop.add_signal_handler
+            getsignal = signal.getsignal
+            special_handlers = set(signal.Handlers)
+            for signum in signals:
+                old_hand = getsignal(signum)
+                if old_hand not in special_handlers:
+                    _logger.warning("%r -> %r", signum, old_hand)
+
+                else:
+                    set_handler(signum, new_hand, signum, event.set)
+                    self.__handling.add(signum)
 
         self.rewrite = True
         self.__tty_mode = 1
@@ -2137,14 +2098,11 @@ HELP and HELP KEYS commands for more information.
                     _logger.warning("KEY_RESIZE")
 
                     self.rewrite = True
-                    try:
-                        curses.resize_term(0, 0)  # hack for Windows
-                    except Exception:
-                        pass
-
+                    self.__winch = False
+                    columns, lines = os.get_terminal_size()
                     (maxy, maxx) = win.getmaxyx()
-                    (columns, lines) = os.get_terminal_size()
                     if (maxy != lines) or (maxx != columns):
+                        curses.resize_term(lines, columns)
                         win.resize(lines, columns)
                         win.erase()
                         win.noutrefresh()
@@ -2864,7 +2822,7 @@ HELP and HELP KEYS commands for more information.
 
             self.__cur_curs_vis = self.__prog_curs_vis
 
-        self.stdscr.refresh()
+        self.stdscr.refresh(_win_callback=self.__set_event_fn())
 
     def __scale_size(self, maxrow, maxcol):
         arows, acols = self.autosize
@@ -3055,11 +3013,11 @@ HELP and HELP KEYS commands for more information.
             elif self.__tty_mode == 0:
                 self.stdscr = None
             else:
-                self.__endwin()
+                curses.endwin()
                 self.stdscr = None
 
             self.__prog_mode()
-            self.__endwin()
+            curses.endwin()
             if self.__shell_mousemask is not None:
                 curses.mousemask(self.__shell_mousemask)
 
@@ -3075,7 +3033,16 @@ HELP and HELP KEYS commands for more information.
             self.__stdout.write("\x1b[?2004l")  # bracketed paste OFF
             self.__stdout.flush()
 
-        self.__endwin()
+        _, loop = ati.ati.get_asyncio_event_loop()
+        if self.__stdin_selected:
+            self.__stdin_selected = False
+            loop.remove_reader(self.__stdin)
+
+        while len(self.__handling) > 0:
+            signum = self.__handling.pop()
+            loop.remove_signal_handler(signum)
+
+        curses.endwin()
         if self.__shell_mousemask is not None:
             curses.mousemask(self.__shell_mousemask)
 
@@ -3087,6 +3054,15 @@ HELP and HELP KEYS commands for more information.
         # does not end up printing anything without doing the
         # following flush.
         self.__stdout.flush()
+
+    def __signal_handler(self, signum, callback):
+        if signum == signal.SIGTSTP:
+            self.__shell_mode()
+            os.kill(os.getpid(), signal.SIGSTOP)
+            self.__prog_mode()
+
+        self.__winch = True
+        callback()
 
     def __tty_read(self, win, timeout, refresh=None):
         """Read from tty
@@ -3106,16 +3082,11 @@ HELP and HELP KEYS commands for more information.
             k = None
             win.timeout(0)
             other_selected = False
-            self.__prep_wait()
-            if self.__stdin_selectr:
-                tout = None
-            else:
-                tout = 0.04  # effective keyboard response time
+            tout = None
 
             if timeout is not None and timeout >= 0:
                 etime = time.time() + timeout
-                if tout is None or timeout < tout:
-                    tout = timeout
+                tout = timeout
             else:
                 etime = None
 
@@ -3134,15 +3105,18 @@ HELP and HELP KEYS commands for more information.
                     return k
 
                 if other_selected:
-                    # must be for wakeup_fd
+                    # must be for signal
+                    if self.__winch:
+                        return "KEY_RESIZE"
+
                     return True
 
-                waitrv = self.__wait(tns, tout, zti=self)
+                waitrv = tns.wait(tout, zti=self)
                 if waitrv is True:
                     return ""
 
                 if waitrv is None:
-                    # stdin or wakeup_fd
+                    # stdin or signal
                     other_selected = True
 
                 if tout == 0:
@@ -3273,10 +3247,6 @@ HELP and HELP KEYS commands for more information.
 
         if self.__in_script:
             self.prompt = "(paused) "+self.prompt
-
-    def __wait(self, tns, timeout=0, zti=None, key=None):
-        self.__prep_wait()
-        return tns.wait(timeout, zti=zti, key=key)
 
     def __write_blanks(self, tns, saddr, eaddr):
         """call to write where field attributes are
@@ -3603,7 +3573,7 @@ HELP and HELP KEYS commands for more information.
                               actcmd,
                               stat))
 
-    # Private static methods
+    # Internal static methods
 
     @staticmethod
     def _rows_cols(session_ps_size):
@@ -3632,6 +3602,17 @@ HELP and HELP KEYS commands for more information.
             return _util.session_ps_14bit(lines, columns)
 
         return _util.session_ps_size(session_ps_size)
+
+    # Private static methods
+
+    @staticmethod
+    def __set_event_fn():
+        event, loop = ati.ati.get_asyncio_event_loop()
+
+        def callback():
+            loop.call_soon_threadsafe(event.set)
+
+        return callback
 
     # Internal data and other attributes
 

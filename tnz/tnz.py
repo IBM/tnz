@@ -27,8 +27,6 @@ import sys
 from . import __version__
 
 __author__ = "Neil Johnson"
-_wait_event = None
-_loop = None
 
 
 class Tnz:
@@ -97,6 +95,7 @@ class Tnz:
 
         self.__secure = False
         self.__host_verified = False
+        self._event = None
         self.__loop = None
         self.__connect_task = None
         self.__zti = None
@@ -237,8 +236,6 @@ class Tnz:
         else:
             self.name = str(hash(self))
 
-        self.need_shutdown = False
-
         # Begin "smart" detection of default properties
 
         try:
@@ -366,7 +363,8 @@ class Tnz:
             transport.abort()
 
     def connect(self, host=None, port=None,
-                secure=False, verifycert=True):
+                secure=False, verifycert=True, *,
+                event=None):
         """Connect to the host.
         """
         if self._transport:
@@ -381,6 +379,9 @@ class Tnz:
             else:
                 port = 992  # default port
 
+        if event:
+            self._event = event
+
         self.__secure = False
         self.__host_verified = False
 
@@ -388,7 +389,6 @@ class Tnz:
             @staticmethod
             def connection_made(transport):
                 self._transport = transport
-                self.need_shutdown = True
                 self.seslost = False
 
             @staticmethod
@@ -399,7 +399,7 @@ class Tnz:
                     else:
                         self.seslost = True
 
-                _wait_event.set()
+                self._event.set()
 
             @staticmethod
             def data_received(data):
@@ -1535,7 +1535,11 @@ class Tnz:
 
         transport = self._transport
         if not transport:
-            self._log_warn("transport not available yet")
+            if not self.__loop:
+                self._log_warn("event loop not available yet")
+            else:
+                self.__log_debug("transport not available at this time")
+
             return
 
         if transport.is_closing():
@@ -1816,13 +1820,11 @@ class Tnz:
             task.cancel()
             loop = self.__get_event_loop()
             if not loop.is_running():
-                # skip if ANY loop is running?
                 loop.run_until_complete(task)
 
         transport = self._transport
         if transport:
             self._transport = None
-            # any way to handle need_shutdown?
             transport.abort()
 
     def start_readlines(self):
@@ -1886,11 +1888,11 @@ class Tnz:
         """
         self.__log_debug("tnz.wait(%r, %r, %r)", timeout, zti, key)
         loop = self.__get_event_loop()
-        wait_event = _wait_event
+        wait_event = self._event
         if not wait_event and self.__connect_task:
             loop.stop()
             loop.run_forever()
-            wait_event = _wait_event
+            wait_event = self._event
 
         if not wait_event:
             self.__log_error("nothing to wait on")
@@ -1996,9 +1998,8 @@ class Tnz:
                         subc_start = None
 
                 elif cmd_byte == 239 and self.__eor:  # EOR
-                    if self.__waiting:
-                        self.__wait_rv = True
-                        _wait_event.set()
+                    self.__wait_rv = True
+                    self._event.set()
 
                     rec = self.__pndrec
                     rec += buff[byte_start:cmd_mat.start()]
@@ -3688,9 +3689,8 @@ class Tnz:
 
         # initialize using running loop implicitly
 
-        global _wait_event
-        if not _wait_event and loop is _loop:
-            _wait_event = asyncio.Event()
+        if not self._event:
+            self._event = asyncio.Event()
 
         # connect
 
@@ -3700,13 +3700,13 @@ class Tnz:
 
         except asyncio.CancelledError:
             self.seslost = True
-            _wait_event.set()
+            self._event.set()
             return  # assume from shutdown/close
 
         except (OSError, UnicodeError):
             self.seslost = sys.exc_info()
             self.__logger.exception("create_connection error")
-            _wait_event.set()
+            self._event.set()
             return  # exception consumed
 
         finally:
@@ -3785,23 +3785,12 @@ class Tnz:
             zti.erase(self)
 
     def __get_event_loop(self):
-        global _loop
         loop = self.__loop
         if not loop:
-            loop = _loop
-
-            if not loop:
-                if platform.system() == "Windows":
-                    # default policy does not support add_reader
-                    pol = asyncio.WindowsSelectorEventLoopPolicy()
-                    asyncio.set_event_loop_policy(pol)
-
-                loop = asyncio.get_event_loop()
-
+            loop = asyncio.get_event_loop()
             self.__loop = loop
-
-        if not _loop:
-            _loop = loop
+            if not self._event:
+                self._event = asyncio.Event()
 
         return loop
 
@@ -4464,17 +4453,18 @@ class Tnz:
                                              context)
         except asyncio.CancelledError:
             self.seslost = True
-            _wait_event.set()
+            self._event.set()
 
         except OSError:  # what could this be?
             self.seslost = sys.exc_info()
             self.__logger.exception("start_tls error")
-            _wait_event.set()
+            self._event.set()
 
         else:
             self._transport = transport
             self.__secure = True
             self.__log_debug("__start_tls transport: %r", transport)
+            self.send()  # in case send() ignored for _transport = None
 
         finally:
             if self.__connect_task is task:
@@ -4873,7 +4863,8 @@ def bit6(control_int):
 
 def connect(host=None, port=None,
             secure=None, verifycert=None,
-            name=None):
+            name=None, *,
+            event=None):
     """Create a new Tnz object and connect to the host.
 
     secure = False if do not care about security
@@ -4893,38 +4884,6 @@ def connect(host=None, port=None,
     if secure is None:
         secure = bool(port != 23)
 
-    tnz.connect(host, port, secure=secure, verifycert=verifycert)
-
+    tnz.connect(host, port, secure=secure, verifycert=verifycert,
+                event=event)
     return tnz
-
-
-def selector_set(fileno, data=None):
-    """Add input fd for wait read events.
-    """
-    _loop.add_reader(fileno, _read_available, data)
-
-
-def selector_del(fileno):
-    """Remove input fd from wait read events.
-    """
-    _loop.remove_reader(fileno)
-
-
-def wakeup_wait(*_, **__):
-    """Trigger wait event.
-    """
-    if _wait_event:
-        _loop.call_soon_threadsafe(_wait_event.set)
-
-
-# Private functions
-
-def _read_available(_):
-    if _wait_event:
-        _wait_event.set()
-
-
-# Private data
-
-_loop = None  # event loop for all sessions
-_wait_event = None  # event for all Wait calls

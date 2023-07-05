@@ -26,16 +26,12 @@ import logging
 import os
 import platform
 import select
-import signal
 import sys
 import time
-
-from . import _sigx as sigx
 
 _osname = platform.system()
 if _osname == "Windows":
     import ctypes
-    import socket
     import threading
 
 else:
@@ -272,9 +268,7 @@ class Term():
         if not onlymouse:
             maxyx = self.__maxyx
             pend_resize = Term.__pend_resize
-            sigstp_resize = Term.__sigstp_resize
             flash_resize = Term.__flash_resize
-            must_resize = sigstp_resize or flash_resize
             flash_reverse = Term.__flash_reverse
 
             if flash_resize:
@@ -283,13 +277,12 @@ class Term():
             elif flash_reverse:
                 raise _TermlibTimeout("flashing")
 
-            if must_resize or (maxyx and pend_resize):
+            if flash_resize or (maxyx and pend_resize):
                 # when using interactive python, sigwinch
                 # has been experienced with every command.
                 # compare old and new sizes to determine if
                 # a resize actually happened.
                 Term.__pend_resize = False
-                Term.__sigstp_resize = False
                 Term.__flash_resize = False
                 columns, lines = os.get_terminal_size(self.__termo_fd)
                 curmaxyx = lines, columns
@@ -298,7 +291,7 @@ class Term():
                     if Term.prog_maxyx != curmaxyx:
                         Term.prog_maxyx = None
 
-                if must_resize or maxyx != curmaxyx:
+                if flash_resize or maxyx != curmaxyx:
                     return "KEY_RESIZE"
 
                 _logger.info("maxyx did not change")
@@ -399,7 +392,7 @@ class Term():
         self.__pendmove = True
 
     @_log_errors
-    def refresh(self):
+    def refresh(self, *, _win_callback=None):
         """Refresh program screen.
         """
         pendlist = self.__pendlist
@@ -416,17 +409,11 @@ class Term():
                 self.__registered_atexit = True
                 atexit.register(self.__atexit)
 
-            if self.__sav:
-                Term.__savwinch = signal.getsignal(signal.SIGWINCH)
-                Term.__savtstp = signal.getsignal(signal.SIGTSTP)
-
             Term.__alt_screen = True
             self.reset_prog_mode()
 
-            if _osname != "Windows":
-                sigx.add_handler(signal.SIGWINCH, self.__sigwinch)
-                sigx.add_handler(signal.SIGTSTP, self.__sigtstp)
-            else:
+            if _osname == "Windows":
+                Term.__win_callback = _win_callback
                 self.__run_thread()
 
             if self.__pendtext:
@@ -497,6 +484,13 @@ class Term():
             _logger.debug("refresh -- sleep(.1)")
             time.sleep(.1)
             Term.__flash_resize = True
+
+    def resize(self, nlines, ncols):
+        """Update window size.
+        """
+        _logger.debug("resize(%r, %r)", nlines, ncols)
+        self.__pend_maxyx = None
+        self.__maxyx = nlines, ncols
 
     def set_title(self, title):
         """
@@ -1090,7 +1084,7 @@ class Term():
 
     @classmethod
     @_log_errors
-    def endwin(cls, stop=False):
+    def endwin(cls):
         """Undo initscr/refresh.
         """
         alt_screen = cls.__alt_screen
@@ -1114,23 +1108,11 @@ class Term():
             codes.append("\x1b[?25h")  # cursor visible
             codes.append("\x1b[?1049l")  # normal screen buffer
             cls.__termo.write("".join(codes))
-
-            if stop:
-                cls.__sav = False
-
-            elif _osname != "Windows":
-                try:  # getting to reset_shell_mode really important
-                    sigx.del_handler(cls.__sigtstp)
-                    sigx.del_handler(cls.__sigwinch)
-
-                except Exception:
-                    _logger.exception("cannot delete handler(s)")
-
-                cls.__sav = True
-
+            cls.__termo.flush()
             cls.__alt_screen = False
 
         cls.__stop_thread()
+        cls.__win_callback = None
         cls.__flash_resize = False
         cls.__flash_reverse = False
         cls.reset_shell_mode()
@@ -1264,10 +1246,8 @@ class Term():
         cls.__termo = termo
         cls.__termo_fd = termo_fd
 
-        cls.__lock = None
-        cls.selectr = termi  # special to account for Windows
+        cls.__condition = None
         if _osname == "Windows":
-            cls.selectr = None
             k32 = ctypes.windll.kernel32
             # STD_INPUT_HANDLE=-10
             # STD_OUTPUT_HANDLE=-11
@@ -1420,10 +1400,19 @@ class Term():
 
     @classmethod
     def resize_term(cls, nlines, ncols):
-        """Does nothing - curses standin.
+        """Backend function used by resizeterm().
         """
         cls.__initscr_required()
         _logger.debug("resize_term(%r, %r)", nlines, ncols)
+        cls.__pend_resize = False
+        cls.__flash_resize = False
+        cls.prog_maxyx = None
+
+    @classmethod
+    def resizeterm(cls, nlines, ncols):
+        """Terminal size changed.
+        """
+        cls.resize_term(nlines, ncols)
 
     @classmethod
     def setupterm(cls, *args):
@@ -1528,34 +1517,37 @@ class Term():
     @classmethod
     def __getchar(cls, timeout=0):
         if _osname == "Windows":
-            socketr = cls.__socketr
-            socketr.settimeout(timeout)
-            try:
-                bstr = cls.__socketr.recv(1)
+            encoding = cls.__termi.encoding
+            errors = cls.__termi.errors
+            with cls.__condition:
+                waited = False
+                need_wait = not cls.__readb
+                while True:
+                    if need_wait and not waited:
+                        waited = True
+                        try:
+                            cls.__condition.wait(timeout)
 
-            except ConnectionResetError as exc:  # why does this happen?
-                _logger.exception("need to rebuild socketpair")
-                cls.__stop_thread()
-                cls.__run_thread()
-                raise _TermlibTimeout("no input") from exc
+                        except RuntimeError:  # timeout
+                            pass
 
-            except (BlockingIOError, socket.timeout) as exc:
-                raise _TermlibTimeout("no input") from exc
+                    bstr = cls.__readb
+                    if not bstr:
+                        raise _TermlibTimeout("no input")
 
-            socketb = Term.__socketb
-            if socketb:
-                Term.__socketb += bstr
-                bstr = Term.__socketb
+                    try:
+                        cstr = bstr.decode(encoding=encoding,
+                                           errors=errors)
 
-            try:
-                cstr = bstr.decode(encoding=Term.__termi.encoding,
-                                   errors=Term.__termi.errors)
+                    except UnicodeDecodeError:
+                        if not waited:
+                            need_wait = True
+                            continue
 
-            except UnicodeDecodeError:
-                raise _TermlibTimeout("no input")
+                        raise _TermlibTimeout("no input")
 
-            Term.__socketb = b""
-            return cstr
+                    cls.__readb = b""
+                    return cstr
 
         termi = cls.__termi
         termi_fd = cls.__termi_fd
@@ -1628,22 +1620,14 @@ class Term():
         """Start __win_thread if not already running.
         """
         if not cls.__thread:
-            if not cls.__lock:
-                cls.__lock = threading.Lock()
+            if not cls.__condition:
+                cls.__condition = threading.Condition()
 
-            sockw, sockr = socket.socketpair()
-            sockw.shutdown(socket.SHUT_RD)
-            sockr.shutdown(socket.SHUT_WR)
-            sockr.setblocking(False)
-            cls.__socketr = sockr
-            cls.__socketw = sockw
-            cls.__socketb = b""
+            cls.__readb = b""
 
             thread = threading.Thread(target=cls.__win_thread)
             cls.__thread = thread
             thread.start()
-
-            cls.selectr = sockr  # special to account for Windows
 
     @classmethod
     def __set_console_mode(cls, handle, mode):
@@ -1675,18 +1659,6 @@ class Term():
                 _logger.exception("tcsetattr")
 
     @classmethod
-    def __sigtstp(cls, *_, **__):
-        _logger.debug("SIGTSTP: stopping=%r", cls.__stopping)
-        if not cls.__stopping:
-            loop = asyncio.get_event_loop()
-            loop.call_soon(cls.__stopcont)
-            cls.__stopping = True
-
-    @classmethod
-    def __sigwinch(cls, *_, **__):
-        cls.__pend_resize = True
-
-    @classmethod
     def __stop_thread(cls):
         """Stop __win_thread if running.
         """
@@ -1696,9 +1668,8 @@ class Term():
         if not thread:
             return
 
-        cls.__lock.acquire()
-        cls.__thread = None
-        cls.__lock.release()
+        with cls.__condition:
+            cls.__thread = None
 
         # second, wakeup thread
 
@@ -1741,60 +1712,28 @@ class Term():
 
         thread.join()
 
-        # fourth, cleanup
-
-        cls.selectr = None
-        sockw = cls.__socketw
-        sockr = cls.__socketr
-        cls.__socketr = None
-        cls.__socketw = None
-        cls.__socketb = b""
-        sockw.close()
-        sockr.close()
-
-    @classmethod
-    def __stopcont(cls):
-        cls.__sigstp_resize = True
-        cls.endwin(stop=True)
-        cls.__termo.flush()
-        os.kill(os.getpid(), signal.SIGSTOP)
-        cls.__stdscr.refresh()
-        cls.__stopping = False
-
     @classmethod
     def __win_thread(cls):
-        """Copy terminal input to socket.
+        """Copy terminal input.
         """
         termi = cls.__termi.buffer
-        sock = cls.__socketw
-        lock = cls.__lock
-        while True:
-            lock.acquire()
-            run = bool(cls.__thread)
-            lock.release()
-            if not run:
-                return
-
+        condition = cls.__condition
+        callback = cls.__win_callback
+        while cls.__thread:
             bstr = termi.read(1)
             if not bstr:
                 _logger.error("__win_thread read no data")
-                if termi.closed:
+                if not termi.closed:
+                    bstr = b"\x1a"  # Windows Ctrl+Z ?
+
+            with condition:
+                cls.__readb += bstr
+                condition.notify()
+                if callback:
+                    callback()
+
+                if not bstr:
                     return
-
-                bstr = b"\x1a"  # Windows Ctrl+Z ?
-
-            lock.acquire()
-            run = bool(cls.__thread)
-            lock.release()
-            if not run:
-                return
-
-            try:
-                sock.sendall(bstr)
-
-            except ConnectionResetError:
-                _logger.exception("need to rebuild socketpair")
-                return
 
     # Static methods
 
@@ -1809,12 +1748,6 @@ class Term():
         """Does nothing - curses standin for window method.
         """
         _logger.debug("noutrefresh()")
-
-    @staticmethod
-    def resize(nlines, ncols):
-        """Does nothing - curses standin for window method.
-        """
-        _logger.debug("resize(%r, %r)", nlines, ncols)
 
     # Data descriptors
 
@@ -1877,6 +1810,7 @@ class Term():
     __termi_fd = None
     __termo = None
     __thread = None
+    __win_callback = None
 
     __stdscr = None
 
@@ -1887,14 +1821,8 @@ class Term():
     __mousemask = 0
     __mouse = None
     __pend_resize = False
-    __sigstp_resize = False
     __flash_resize = False
     __flash_reverse = False
-
-    __sav = (_osname != "Windows")
-    __savwinch = None
-    __savtstp = None
-    __stopping = False
 
     __color_pairs = {0: (-1, -1)}
     __colors = {}
