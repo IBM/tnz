@@ -1517,29 +1517,37 @@ class Term():
     @classmethod
     def __getchar(cls, timeout=0):
         if _osname == "Windows":
+            encoding = cls.__termi.encoding
+            errors = cls.__termi.errors
             with cls.__condition:
-                bstr = cls.__readb
-                if not bstr:
-                    try:
-                        cls.__condition.wait(timeout)
+                waited = False
+                need_wait = not cls.__readb
+                while True:
+                    if need_wait and not waited:
+                        waited = True
+                        try:
+                            cls.__condition.wait(timeout)
 
-                    except RuntimeError:
-                        raise _TermlibTimeout("no input")
+                        except RuntimeError:  # timeout
+                            pass
 
                     bstr = cls.__readb
                     if not bstr:
                         raise _TermlibTimeout("no input")
 
-                cls.__readb = b""
+                    try:
+                        cstr = bstr.decode(encoding=encoding,
+                                           errors=errors)
 
-            try:
-                cstr = bstr.decode(encoding=cls.__termi.encoding,
-                                   errors=cls.__termi.errors)
+                    except UnicodeDecodeError:
+                        if not waited:
+                            need_wait = True
+                            continue
 
-            except UnicodeDecodeError:
-                raise _TermlibTimeout("no input")
+                        raise _TermlibTimeout("no input")
 
-            return cstr
+                    cls.__readb = b""
+                    return cstr
 
         termi = cls.__termi
         termi_fd = cls.__termi_fd
