@@ -379,7 +379,9 @@ class Tnz:
             else:
                 port = 992  # default port
 
-        self._event = event
+        if event:
+            self._event = event
+
         self.__secure = False
         self.__host_verified = False
 
@@ -3787,6 +3789,8 @@ class Tnz:
         if not loop:
             loop = asyncio.get_event_loop()
             self.__loop = loop
+            if not self._event:
+                self._event = asyncio.Event()
 
         return loop
 
