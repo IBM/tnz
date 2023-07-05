@@ -32,7 +32,6 @@ import time
 _osname = platform.system()
 if _osname == "Windows":
     import ctypes
-    import socket
     import threading
 
 else:
@@ -1247,7 +1246,7 @@ class Term():
         cls.__termo = termo
         cls.__termo_fd = termo_fd
 
-        cls.__lock = None
+        cls.__condition = None
         if _osname == "Windows":
             k32 = ctypes.windll.kernel32
             # STD_INPUT_HANDLE=-10
@@ -1518,33 +1517,28 @@ class Term():
     @classmethod
     def __getchar(cls, timeout=0):
         if _osname == "Windows":
-            socketr = cls.__socketr
-            socketr.settimeout(timeout)
-            try:
-                bstr = cls.__socketr.recv(1)
+            with cls.__condition:
+                bstr = cls.__readb
+                if not bstr:
+                    try:
+                        cls.__condition.wait(timeout)
 
-            except ConnectionResetError as exc:  # why does this happen?
-                _logger.exception("need to rebuild socketpair")
-                cls.__stop_thread()
-                cls.__run_thread()
-                raise _TermlibTimeout("no input") from exc
+                    except RuntimeError:
+                        raise _TermlibTimeout("no input")
 
-            except (BlockingIOError, socket.timeout) as exc:
-                raise _TermlibTimeout("no input") from exc
+                    bstr = cls.__readb
+                    if not bstr:
+                        raise _TermlibTimeout("no input")
 
-            socketb = Term.__socketb
-            if socketb:
-                Term.__socketb += bstr
-                bstr = Term.__socketb
+                cls.__readb = b""
 
             try:
-                cstr = bstr.decode(encoding=Term.__termi.encoding,
-                                   errors=Term.__termi.errors)
+                cstr = bstr.decode(encoding=cls.__termi.encoding,
+                                   errors=cls.__termi.errors)
 
             except UnicodeDecodeError:
                 raise _TermlibTimeout("no input")
 
-            Term.__socketb = b""
             return cstr
 
         termi = cls.__termi
@@ -1618,16 +1612,10 @@ class Term():
         """Start __win_thread if not already running.
         """
         if not cls.__thread:
-            if not cls.__lock:
-                cls.__lock = threading.Lock()
+            if not cls.__condition:
+                cls.__condition = threading.Condition()
 
-            sockw, sockr = socket.socketpair()
-            sockw.shutdown(socket.SHUT_RD)
-            sockr.shutdown(socket.SHUT_WR)
-            sockr.setblocking(False)
-            cls.__socketr = sockr
-            cls.__socketw = sockw
-            cls.__socketb = b""
+            cls.__readb = b""
 
             thread = threading.Thread(target=cls.__win_thread)
             cls.__thread = thread
@@ -1672,9 +1660,8 @@ class Term():
         if not thread:
             return
 
-        cls.__lock.acquire()
-        cls.__thread = None
-        cls.__lock.release()
+        with cls.__condition:
+            cls.__thread = None
 
         # second, wakeup thread
 
@@ -1717,54 +1704,28 @@ class Term():
 
         thread.join()
 
-        # fourth, cleanup
-
-        sockw = cls.__socketw
-        sockr = cls.__socketr
-        cls.__socketr = None
-        cls.__socketw = None
-        cls.__socketb = b""
-        sockw.close()
-        sockr.close()
-
     @classmethod
     def __win_thread(cls):
-        """Copy terminal input to socket.
+        """Copy terminal input.
         """
         termi = cls.__termi.buffer
-        sock = cls.__socketw
-        lock = cls.__lock
+        condition = cls.__condition
         callback = cls.__win_callback
-        while True:
-            lock.acquire()
-            run = bool(cls.__thread)
-            lock.release()
-            if not run:
-                return
-
+        while cls.__thread:
             bstr = termi.read(1)
             if not bstr:
                 _logger.error("__win_thread read no data")
-                if termi.closed:
+                if not termi.closed:
+                    bstr = b"\x1a"  # Windows Ctrl+Z ?
+
+            with condition:
+                cls.__readb += bstr
+                condition.notify()
+                if callback:
+                    callback()
+
+                if not bstr:
                     return
-
-                bstr = b"\x1a"  # Windows Ctrl+Z ?
-
-            lock.acquire()
-            run = bool(cls.__thread)
-            lock.release()
-            if not run:
-                return
-
-            try:
-                sock.sendall(bstr)
-
-            except ConnectionResetError:
-                _logger.exception("need to rebuild socketpair")
-                return
-
-            if callback:
-                callback()
 
     # Static methods
 
