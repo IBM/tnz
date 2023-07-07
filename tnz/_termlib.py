@@ -328,6 +328,7 @@ class Term():
 
         if len(key) > 1:
             self.__pendinc = key[1:]
+            key = key[0]
 
         _logger.debug("getkey returning %r", key)
         return key
