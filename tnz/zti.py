@@ -50,7 +50,6 @@ if __name__ == "__main__":
 
 import atexit
 import cmd
-import ctypes
 import logging
 import os
 import platform
@@ -1910,9 +1909,8 @@ HELP and HELP KEYS commands for more information.
             self.__color_setup()
 
         curses.flushinp()
-        if _osname != "Windows":
-            self.__stdout.write("\x1b[?2004h")  # bracketed paste ON
-            self.__stdout.flush()
+        self.__stdout.write("\x1b[?2004h")  # bracketed paste ON
+        self.__stdout.flush()
 
         signals = self.__signals
         if signals:
@@ -2140,39 +2138,6 @@ HELP and HELP KEYS commands for more information.
                 elif paste is not None:  # more bracketed paste data
 
                     paste += cstr
-
-                elif cstr == "KEY_SIC":
-                    _logger.debug("keyed Shift+Insert")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    elif _osname != "Windows":
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        paste = None
-                        fmt = 13  # CF_UNICODETEXT
-                        k32 = ctypes.windll.kernel32
-                        k32.GlobalLock.argtypes = [ctypes.c_void_p]
-                        k32.GlobalLock.restype = ctypes.c_void_p
-                        k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
-                        u32 = ctypes.windll.user32
-                        u32.GetClipboardData.restype = ctypes.c_void_p
-                        u32.OpenClipboard(0)
-                        try:
-                            if u32.IsClipboardFormatAvailable(fmt):
-                                data = u32.GetClipboardData(fmt)
-                                data_locked = k32.GlobalLock(data)
-                                paste = ctypes.wstring_at(data_locked)
-                                k32.GlobalUnlock(data_locked)
-                        finally:
-                            u32.CloseClipboard()
-
-                        if paste:
-                            self.__paste_data(tns, paste)
-
-                        paste = None
 
                 elif cstr == "\x0c":  # Ctrl+L
                     _logger.debug("keyed Ctrl+L")
@@ -3029,9 +2994,8 @@ HELP and HELP KEYS commands for more information.
         if self.__tty_mode == 0:  # shell
             return
 
-        if _osname != "Windows":
-            self.__stdout.write("\x1b[?2004l")  # bracketed paste OFF
-            self.__stdout.flush()
+        self.__stdout.write("\x1b[?2004l")  # bracketed paste OFF
+        self.__stdout.flush()
 
         _, loop = ati.ati.get_asyncio_event_loop()
         if self.__stdin_selected:

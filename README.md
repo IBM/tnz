@@ -109,10 +109,6 @@ select text. Once the text is selected, press Enter to copy the
 text.** There are other ways to select text, but I this to be the
 easiest.
 
-Do NOT use Control-menu->Edit->Paste to paste text (unless the
-text in the clipboard has ONLY printable characters - no line
-breaks). Instead, **use Shift+Insert to paste**.
-
 Before establishing a session, get the window sized the way you want
 it. Window resizing is not handled well in Windows. If you _do_
 resize, just use Esc to get to the command prompt then `goto` to get
