@@ -2319,8 +2319,8 @@ HELP and HELP KEYS commands for more information.
                     _logger.debug("keyed Alt+1 or Alt+Insert")
 
                     if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
+                        # Assume Attention needed for z/VM
+                        tns.send_aid(0x6c)  # AID_PA1
                     else:
                         tns.pa1()
                         self.rewrite_keylock = True
