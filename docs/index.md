@@ -2,22 +2,12 @@
 title: Introduction
 ---
 
-Use a standard terminal emulator as a 3270 terminal interface. 
-
-Write
-scripts to automate 3270 terminal interaction.
-
-This is both a 3270
-terminal emulator and a Python libary. 
-
-The zti module provides a 3270
+Use a standard terminal emulator as a 3270 terminal interface. Write
+scripts to automate 3270 terminal interaction. This is both a 3270
+terminal emulator and a Python libary. The zti module provides a 3270
 user interface through a Windows Command Prompt or a unix/ascii
-terminal. 
-
-The tnz module handles the interface to the 3270 data
-stream. 
-
-The ati module allows for easier 3270 terminal automation.
+terminal. The tnz module handles the interface to the 3270 data
+stream. The ati module allows for easier 3270 terminal automation.
 
 #### Features
 * Runs on many platforms (including z/OS)
@@ -109,10 +99,6 @@ select text. Once the text is selected, press Enter to copy the
 text.** There are other ways to select text, but I this to be the
 easiest.
 
-Do NOT use Control-menu->Edit->Paste to paste text (unless the
-text in the clipboard has ONLY printable characters - no line
-breaks). Instead, **use Shift+Insert to paste**.
-
 Before establishing a session, get the window sized the way you want
 it. Window resizing is not handled well in Windows. If you _do_
 resize, just use Esc to get to the command prompt then `goto` to get
@@ -122,11 +108,6 @@ Control-menu->Properties will take you to properties for the
 terminal. The character size and font can be set. I recommend
 **Lucida Console** - it is readable and the graphic symbols are
 fairly good at connecting like they are supposed to.
-
-
-## Documentation
-
-For additional details, see docstrings in source code.
 
 ## Contributing
 See [CONTRIBUTING.md](https://github.com/IBM/tnz/blob/main/CONTRIBUTING.md).
