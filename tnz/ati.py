@@ -156,18 +156,18 @@ class Ati():
     Automate a set of 3270 terminal sessions.
 
     Methods with ATI function equivalents:
-        drop
-        extract
-        logwrt
-        num
-        say
-        scrhas
-        send
-        set
-        share <called GLOBAL in ATI>
-        value
-        wait
-        when
+        - drop
+        - extract
+        - logwrt
+        - num
+        - say
+        - scrhas
+        - send
+        - set
+        - share <called GLOBAL in ATI>
+        - value
+        - wait
+        - when
 
     Methods from tnz.rexx with ATI function equivalents:
         copies
@@ -181,50 +181,50 @@ class Ati():
         words
 
     Methods from Python with ATI function equivalents:
-        stripl
-        stript
-        upper
+        - stripl
+        - stript
+        - upper
 
     ATI functions with no equivalent method implemented:
-        chr
-        cms
-        include
-        keywait
-        ord
-        pull
-        push
+        - chr
+        - cms
+        - include
+        - keywait
+        - ord
+        - pull
+        - push
 
     Properties with internal ATI variable equivalents:
-        age
-        curcol
-        currow
-        date
-        datetime
-        display
-        hitcol
-        hitrow
-        hitstr
-        keylock
-        keyunlock
-        logdest
-        maxcol
-        maxrow
-        maxlostwarn
-        maxwait
-        milliage
-        onerror
-        rc
-        sendstr
-        seslost
-        session
-        sessionid
-        sessions
-        session24
-        showline
-        showtype
-        time
-        trace
-        waitsleep
+        - age
+        - curcol
+        - currow
+        - date
+        - datetime
+        - display
+        - hitcol
+        - hitrow
+        - hitstr
+        - keylock
+        - keyunlock
+        - logdest
+        - maxcol
+        - maxrow
+        - maxlostwarn
+        - maxwait
+        - milliage
+        - onerror
+        - rc
+        - sendstr
+        - seslost
+        - session
+        - sessionid
+        - sessions
+        - session24
+        - showline
+        - showtype
+        - time
+        - trace
+        - waitsleep
     """
 
     # dunder methods
@@ -2818,8 +2818,8 @@ class Ati():
     def datetime(self):
         """Current Date/Time
 
-        Contains the current date and time in the form yy/mm/dd
-        hh:mm:ss. To get the date in yyyy/mm/dd hh:mm:ss form, set
+        Contains the current date and time in the form `yy/mm/dd
+        hh:mm:ss`. To get the date in `yyyy/mm/dd hh:mm:ss` form, set
         the DATEFORM environment variable to LONG (in any case).
         """
         if self.__century():
@@ -2925,7 +2925,7 @@ class Ati():
     def time(self):
         """Current Time
 
-        Contains the current time in the form hh:mm:ss.
+        Contains the current time in the form `hh:mm:ss`.
         """
         return time.strftime("%H:%M:%S")
 

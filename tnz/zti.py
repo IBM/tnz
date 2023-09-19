@@ -1,7 +1,7 @@
 """Z terminal interface
 
 Like ATI Session Manager.
-
+```
 Command usage:
     zti [-h] [--nolog] [--noztirc | --rcfile rcfile] [host]
 
@@ -13,7 +13,7 @@ Command usage:
       --nolog          Do not set LOGDEST to zti.log
       --noztirc        Do not SOURCE .ztirc in home directory
       --rcfile rcfile  Filename to run using SOURCE
-
+```
 Create a command plugin by creating a "zti.commands" entry
 point through setup.py that takes a single argument of a
 command line string.
