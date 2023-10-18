@@ -1760,7 +1760,12 @@ HELP and HELP KEYS commands for more information.
             return
 
         plugins = []
-        zti_plugins = entry_points().get("zti.commands", [])
+        eps = entry_points()
+        if hasattr(eps, "select"):
+            zti_plugins = eps.select(group="zti.commands")
+        else:
+            zti_plugins = eps.get("zti.commands", [])
+
         for entry in zti_plugins:
             name = entry.name
             plugins.append(name)
