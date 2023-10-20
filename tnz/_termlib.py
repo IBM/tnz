@@ -426,7 +426,7 @@ class Term():
             Term.__shell_maxyx = None
             if self.__maxyx and not self.__pend_maxyx:
                 self.__pend_resize = True  # maybe missed SIGWINCH?
-            pendlist.insert(0, "\x1bm")  # normal
+            pendlist.insert(0, "\x1b[m")  # normal
 
             pendlist.extend(self.__mouseq(0, self.__mousemask))
 
