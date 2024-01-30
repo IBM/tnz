@@ -1105,7 +1105,7 @@ class Term():
                 stdscr.__title_current = None
 
             codes.append("\x1b[?1000l")  # no mouse button press events
-            codes.append("\x1b[1 q")  # default cursor style
+            codes.append("\x1b[ q")  # default cursor style
             codes.append("\x1b[?25h")  # cursor visible
             codes.append("\x1b[?1049l")  # normal screen buffer
             cls.__termo.write("".join(codes))
