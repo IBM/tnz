@@ -4,7 +4,8 @@ ebcdic==1.1.1; sys_platform!="zos"
 mkdocs-material==9.5.28; python_version>="3.8"
 mkdocs-minify-plugin==0.8.0; python_version>="3.8"
 mkdocstrings-python==1.10.5; python_version>="3.8"
-pycodestyle==2.12.0
+pycodestyle==2.10.0; python_version<"3.8"
+pycodestyle==2.12.0; python_version>="3.8"
 pylint==2.17.5
 pytest==8.2.2; python_version>="3.8"
 pytest>=7.4.2; python_version<"3.8"
