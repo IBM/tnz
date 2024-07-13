@@ -12,4 +12,4 @@ The other option is to try to use the "less secure" way that the server is "forc
 
 ## Port Defaults
 
-If `SESSION_SSL=0` is used, default port is 992 If `SESSION_SSL=1` is used, default port is 23.
+If `SESSION_SSL=0` is used, the default port is 23. If `SESSION_SSL=1` is used, the default port is 992.
