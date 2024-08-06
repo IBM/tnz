@@ -1,5 +1,5 @@
 black==24.4.2
-build==1.0.3
+build==1.2.1
 ebcdic==1.1.1; sys_platform!="zos"
 mkdocs-material==9.5.31
 mkdocs-minify-plugin==0.8.0
