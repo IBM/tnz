@@ -5,7 +5,7 @@ mkdocs-material==9.5.31
 mkdocs-minify-plugin==0.8.0
 mkdocstrings-python==1.10.5
 pycodestyle==2.12.0
-pylint==2.17.5
+pylint==3.2.6
 pytest==8.3.2; python_version>="3.8"
 pytest>=7.4.2; python_version<"3.8"
 twine==5.1.1; sys_platform!="zos"
