@@ -10,7 +10,7 @@ One thing that may help keep the 3270 terminal size constant in reconnect scenar
 
 ## SESSION\_PS\_SIZE
 
-To help with reconnect scenarios, or to just request a specific size, set the `SESSION_PS_SIZE` environment variable to the desired size (for example `export SESSION_PS_SIZE=43x80` for 43 rows by 80 columns). When using `ati.py` or in `zti` you can also use the `SESSION_PS_SIZE` ATI\-like variable in the same way (for example `set SESSION_PS_SIZE 62x160`).
+To help with reconnect scenarios, or to just request a specific size, set the `SESSION_PS_SIZE` environment variable to the desired size (for example `export SESSION_PS_SIZE=43x80` for 43 rows by 80 columns). When using `ati.py` or in `zti` you can also use the `SESSION_PS_SIZE` ATI\-like variable in the same way (for example `set SESSION_PS_SIZE=62x160`).
 
 In addition to taking the default largest *standard* terminal size that fits and specifying a specific size, there are some special values that you can set the `SESSION_PS_SIZE` environment variable to that `zti` will use to determine the 3270 terminal size:
 
