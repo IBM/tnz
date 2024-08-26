@@ -23,6 +23,8 @@ jobs:
         name: dist
         path: dist/
 
+    - run: mkdocs build
+
   test-wheel:
     needs: build-wheel
     runs-on: ubuntu-latest
