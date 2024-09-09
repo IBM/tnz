@@ -1,5 +1,5 @@
 black==24.8.0
-build==1.2.1
+build==1.2.2
 ebcdic==1.1.1; sys_platform!="zos"
 griffe==1.2.0
 mkdocs-material==9.5.34
