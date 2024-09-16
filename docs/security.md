@@ -4,6 +4,17 @@ hide:
   - toc
 ---
 
+## SSL Verification
+
+Use environment variable `SESSION_SSL_VERIFY=cert` to require that the
+server provide a trusted certificate.
+
+Use environment variable `SESSION_SSL_VERIFY=hostname` to require that
+the certificate hostname match the requested hostname. Note that this
+also requires that the server provide a trusted certificate.
+
+## Cipher Issues
+
 Python 3.10 is aggressive in causing failures for algorithms/options that are not secure enough. If you receive an SSL-related message, there is a good chance of a security weakness in the host/server.
 
 The best course of action is to request that the server be updated to support security best practices in terms of supported encryption algorithms and key sizes.
