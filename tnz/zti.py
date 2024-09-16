@@ -772,6 +772,22 @@ class Zti(cmd.Cmd):
 
         print(f" SESSION_CODE_PAGE={tns.codec_info[0].name}")
         print(f" SESSION_PS_SIZE={tns.amaxrow}x{tns.amaxcol}")
+
+        if tns.secure:
+            verify = ""
+            if tns.host_verified:
+                verify = "hostname"
+            elif tns.cert_verified:
+                verify = "cert"
+
+            if verify:
+                print(f" SESSION_SSL_VERIFY={verify}")
+            else:
+                print(f" SESSION_SSL=1")
+                print(f" SESSION_SSL_VERIFY=none")
+        else:
+            print(f" SESSION_SSL=0")
+
         print(f" SESSION_TN_ENHANCED={tns.tn3270e:d}")
         print(f" SESSION_DEVICE_TYPE={tns.terminal_type}")
 
@@ -779,8 +795,6 @@ class Zti(cmd.Cmd):
             print(" Alternate code page IBM-"+str(tns.cp_F1))
         else:
             print(" Alternate code page not supported")
-
-        print(" socket type: "+repr(tns.getsockettype()))
 
         if tns.extended_color_mode():
             print(" Extended color mode")
@@ -1061,10 +1075,11 @@ class Zti(cmd.Cmd):
         print("""Variables used when creating a new session:
  SESSION_CODE_PAGE    - code page, e.g. cp037
  SESSION_LU_NAME      - LU name for TN3270E CONNECT
- SESSION_HOST         - tcp/ip hostname
+ SESSION_HOST         - tcp/ip hostname or IP address
  SESSION_PORT         - tcp/ip port, default is 992
  SESSION_PS_SIZE      - terminal size, e.g. 62x160
  SESSION_SSL          - set to 0 to not force SSL
+ SESSION_SSL_VERIFY   - set to cert or hostname to require verification
  SESSION_TN_ENHANCED  - set to 1 allow TN3270E
  SESSION_DEVICE_TYPE  - device-type, e.g. IBM-DYNAMIC
 """)
