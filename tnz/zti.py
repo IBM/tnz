@@ -30,7 +30,7 @@ Environment variables used:
     ZTI_TITLE
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021, 2023 IBM Inc. All Rights Reserved.
+Copyright 2021, 2024 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
