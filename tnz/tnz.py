@@ -2144,7 +2144,8 @@ class Tnz:
                     self.send_do(25, buffer=True)
 
             elif data[2] == 46:  # START_TLS
-                if not hasattr(self.__loop, "start_tls"):
+                ssl_never = os.environ.get("SESSION_SSL") == "NEVER"
+                if ssl_never or not hasattr(self.__loop, "start_tls"):
                     self._log_warn("START_TLS unsupported.")
                     self._log_warn("Python >= 3.7 required")
                     self.send_wont(data[2], buffer=True)
