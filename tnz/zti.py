@@ -25,6 +25,7 @@ Environment variables used:
     TERM_PROGRAM (see _termlib.py)
     TNZ_COLORS (see tnz.py)
     TNZ_LOGGING (see tnz.py)
+    ZTI_AIDBUFSIZE (9 is default)
     ZTI_AUTOSIZE
     ZTI_SECLEVEL (see tnz.py)
     ZTI_TITLE
@@ -1986,6 +1987,7 @@ HELP and HELP KEYS commands for more information.
         self.__refresh()
         refresh = False
         paste = None
+        keylock_aidbuf = []  # aid callables buffered for KEYLOCK = 1
 
         try:
             while True:
@@ -2011,10 +2013,12 @@ HELP and HELP KEYS commands for more information.
                         return 12
 
                     if tns.ddmdata or tns.ddmdict:
+                        # TODO what if keylock_aidbuf?
                         return 10  # have ddmdata
 
                     if self.downloadaction:
                         self.downloadaction = False
+                        # TODO what if keylock_aidbuf?
                         return 11  # have download action
 
                     if ((self.rewrite or
@@ -2046,6 +2050,7 @@ HELP and HELP KEYS commands for more information.
 
                     if self.cmdqueue:  # plugin added cmd to process?
                         self.shell_mode()
+                        # TODO what if keylock_aidbuf?
                         return 1  # timeout?
 
                     cstr = self.__tty_read(win, tout)
@@ -2066,10 +2071,12 @@ HELP and HELP KEYS commands for more information.
                     return 12  # seslost
 
                 if tns.ddmdata or tns.ddmdict:
+                    # TODO what if keylock_aidbuf?
                     return 10  # have ddmdata
 
                 if self.downloadaction:
                     self.downloadaction = False
+                    # TODO what if keylock_aidbuf?
                     return 11  # have download action
 
                 # check for Alt+letter shortcut
@@ -2099,6 +2106,7 @@ HELP and HELP KEYS commands for more information.
 
                 # process input
 
+                aid_callable = None
                 if not cstr:  # session update
                     pass
 
@@ -2116,6 +2124,9 @@ HELP and HELP KEYS commands for more information.
 
                 elif cstr == "\x1b" or cstr == "KEY_ESC":  # ESC
                     _logger.debug("keyed Esc")
+                    if keylock_aidbuf:  # if not all keys were processed
+                        curses.beep()  # signal user something happened
+
                     return cstr
 
                 elif cstr == "KEY_RESIZE":
@@ -2135,6 +2146,10 @@ HELP and HELP KEYS commands for more information.
 
                     curses.flash()
 
+                elif (keylock_aidbuf and
+                      not tns.pwait and not tns.system_lock_wait):
+                    pass  # process keylock_aidbuf below
+
                 elif cstr.startswith("\x1b[200~"):  # bracketed paste
 
                     paste = cstr[6:]
@@ -2142,6 +2157,7 @@ HELP and HELP KEYS commands for more information.
                         paste = paste[:-6]
                         if paste:
                             if tns.pwait or tns.system_lock_wait:
+                                keylock_aidbuf.clear()  # cancel, paste
                                 curses.flash()
                                 curses.beep()
                             else:
@@ -2154,6 +2170,7 @@ HELP and HELP KEYS commands for more information.
                     paste += cstr[:-6]
                     if paste:
                         if tns.pwait or tns.system_lock_wait:
+                            keylock_aidbuf.clear()  # cancel, paste
                             curses.flash()
                             curses.beep()
                         else:
@@ -2178,16 +2195,13 @@ HELP and HELP KEYS commands for more information.
                         win.erase()
                         win.noutrefresh()
 
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.clear()
+                    aid_callable = tns.clear
 
                 elif len(cstr) == 1 and cstr.isprintable():
 
                     keylock = ati.value("KEYLOCK", trace=False)
                     if keylock == "1":
+                        keylock_aidbuf.clear()  # cancel, key data
                         curses.flash()
                     else:
                         if insmode:
@@ -2197,22 +2211,16 @@ HELP and HELP KEYS commands for more information.
 
                 elif cstr == "\r":
                     _logger.debug("keyed Enter")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.enter()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.enter
 
                 elif cstr == "\n":
                     _logger.debug("keyed Shift+Enter")
-
+                    # TODO need to handle keylock
                     tns.key_newline()
 
                 elif cstr == "\t":
                     _logger.debug("keyed Tab")
-
+                    # TODO need to handle keylock
                     tns.key_tab(zti=self)
                     self.rewrite_cursor = True
 
@@ -2220,7 +2228,7 @@ HELP and HELP KEYS commands for more information.
                       cstr == "KEY_BACKSPACE" or
                       cstr == "\x7f"):
                     _logger.debug("keyed Backspace")
-
+                    # TODO need to handle keylock
                     tns.key_backspace(zti=self)
                     self.rewrite_cursor = True
 
@@ -2229,12 +2237,12 @@ HELP and HELP KEYS commands for more information.
                       cstr == "\x1b[F" or  # Shift+End
                       cstr == "KEY_SEND"):  # Shift+End
                     _logger.debug("keyed Shift+End or Ctrl+K")
-
+                    # TODO need to handle keylock
                     tns.key_eraseeof(zti=self)
 
                 elif cstr == "KEY_END":  # End
                     _logger.debug("keyed End")
-
+                    # TODO need to handle keylock
                     tns.key_end()
                     self.rewrite_cursor = True
 
@@ -2242,25 +2250,26 @@ HELP and HELP KEYS commands for more information.
                       cstr == "\x1b H" or
                       cstr == "KEY_HOME"):
                     _logger.debug("keyed Home")
-
+                    # TODO need to handle keylock
                     tns.key_home(zti=self)
                     self.rewrite_cursor = True
 
                 elif cstr == "KEY_DC":
                     _logger.debug("keyed Delete")
-
+                    # TODO need to handle keylock
                     tns.key_delete(zti=self)
 
                 elif (cstr == "KEY_BTAB" or  # Shift+Tab
                       cstr == "\x1b[~"):  # Shift+Tab Windows->ssh
                     _logger.debug("keyed Shift+Tab")
-
+                    # TODO need to handle keylock
                     tns.key_backtab(zti=self)
                     self.rewrite_cursor = True
 
                 elif altc > 0:
 
                     if tns.pwait or tns.system_lock_wait:
+                        keylock_aidbuf.clear()  # cancel, Alt+letter
                         curses.flash()
                         curses.beep()
                     else:
@@ -2271,45 +2280,33 @@ HELP and HELP KEYS commands for more information.
 
                 elif cstr == "KEY_PPAGE":  # PgUp
                     _logger.debug("keyed PgUp")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf7()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf7
 
                 elif cstr == "KEY_NPAGE":  # PgDn
                     _logger.debug("keyed PgDn")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf8()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf8
 
                 elif cstr == "KEY_UP":
                     _logger.debug("keyed Up")
-
+                    # TODO need to handle keylock
                     tns.key_curup(zti=self)
                     self.rewrite_cursor = True
 
                 elif cstr == "KEY_DOWN":
                     _logger.debug("keyed Dn")
-
+                    # TODO need to handle keylock
                     tns.key_curdown(zti=self)
                     self.rewrite_cursor = True
 
                 elif cstr == "KEY_LEFT":
                     _logger.debug("keyed Left")
-
+                    # TODO need to handle keylock
                     tns.key_curleft(zti=self)
                     self.rewrite_cursor = True
 
                 elif cstr == "KEY_RIGHT":
                     _logger.debug("keyed Right")
-
+                    # TODO need to handle keylock
                     tns.key_curright(zti=self)
                     self.rewrite_cursor = True
 
@@ -2317,7 +2314,7 @@ HELP and HELP KEYS commands for more information.
                               "\x1bb",  # Alt+LEFT (Terminal.app)
                               "\x1b[1;3D"):  # Alt+LEFT (Windows)
                     _logger.debug("keyed Alt+Left")
-
+                    # TODO need to handle keylock
                     tns.key_word_left()
                     self.rewrite_cursor = True
 
@@ -2325,7 +2322,7 @@ HELP and HELP KEYS commands for more information.
                               "\x1bf",  # Alt+RIGHT (Terminal.app)
                               "\x1b[1;3C"):  # Alt+RIGHT (Windows)
                     _logger.debug("keyed Alt+Right")
-
+                    # TODO need to handle keylock
                     tns.key_word_right()
                     self.rewrite_cursor = True
 
@@ -2347,6 +2344,7 @@ HELP and HELP KEYS commands for more information.
                     if tns.pwait or tns.system_lock_wait:
                         # Assume Attention needed for z/VM
                         tns.send_aid(0x6c)  # AID_PA1
+                        keylock_aidbuf.clear()  # cancel, PA1
                     else:
                         tns.pa1()
                         self.rewrite_keylock = True
@@ -2356,295 +2354,132 @@ HELP and HELP KEYS commands for more information.
                       cstr == "\x1b\x1b[1~" or  # ESC+Home (Alt+Home)
                       cstr == "ALT_HOME"):  # Alt+Home
                     _logger.debug("keyed Alt+2 or Alt+Home")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pa2()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pa2
 
                 elif (cstr == "\x1b3" or  # ESC+3 (Alt+3)
                       cstr == "ALT_3"):  # ESC+3 (Alt+3)
                     _logger.debug("keyed Alt+3")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pa3()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pa3
 
                 elif (cstr == "\x1ba" or  # ESC+a (Alt+A)
                       cstr == "ALT_A" or  # ESC+a (Alt+A)
                       cstr == "\x03"):  # Ctrl+C
                     _logger.debug("keyed Alt+A or Ctrl+C")
-
+                    keylock_aidbuf.clear()
                     tns.attn()
 
                 elif (cstr == "\x1bc" or  # ESC+c (Alt+c)
                       cstr == "ALT_C"):  # ESC+c (Alt+c)
                     _logger.debug("keyed Alt+C")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.clear()
-                        self.rewrite = True
-                        self.rewrite_keylock = True
+                    aid_callable = tns.clear
 
                 elif (cstr == "KEY_F(1)" or
                       cstr == "\x1b[11~"):
                     _logger.debug("keyed F1")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf1()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf1
 
                 elif (cstr == "KEY_F(2)" or
                       cstr == "\x1b[12~"):
                     _logger.debug("keyed F2")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf2()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf2
 
                 elif (cstr == "KEY_F(3)" or
                       cstr == "\x1b[13~"):
                     _logger.debug("keyed F3")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf3()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf3
 
                 elif (cstr == "KEY_F(4)" or
                       cstr == "\x1b[14~"):
                     _logger.debug("keyed F4")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf4()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf4
 
                 elif cstr == "KEY_F(5)":
                     _logger.debug("keyed F5")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf5()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf5
 
                 elif cstr == "KEY_F(6)":
                     _logger.debug("keyed F6")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf6()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf6
 
                 elif cstr == "KEY_F(7)":
                     _logger.debug("keyed F7")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf7()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf7
 
                 elif cstr == "KEY_F(8)":
                     _logger.debug("keyed F8")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf8()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf8
 
                 elif cstr == "KEY_F(9)":
                     _logger.debug("keyed F9")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf9()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf9
 
                 elif cstr == "KEY_F(10)":
                     _logger.debug("keyed F10")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf10()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf10
 
                 elif cstr == "KEY_F(11)":
                     _logger.debug("keyed F11")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf11()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf11
 
                 elif cstr == "KEY_F(12)":
                     _logger.debug("keyed F12")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf12()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf12
 
                 elif cstr == "KEY_F(13)":
                     _logger.debug("keyed Shift+F1")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf13()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf13
 
                 elif cstr == "KEY_F(14)":
                     _logger.debug("keyed Shift+F2")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf14()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf14
 
                 elif (cstr == "KEY_F(15)" or  # Shift+F3
                       cstr == "\x1b[25~"):  # Shift+F3
                     _logger.debug("keyed Shift+F3")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf15()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf15
 
                 elif (cstr == "KEY_F(16)" or  # Shift+F4
                       cstr == "\x1b[26~"):  # Shift+F4
                     _logger.debug("keyed Shift+F4")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf16()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf16
 
                 elif (cstr == "KEY_F(17)" or  # Shift+F5
                       cstr == "\x1b[28~"):  # Shift+F5
                     _logger.debug("keyed Shift+F5")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf17()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf17
 
                 elif (cstr == "KEY_F(18)" or  # Shift+F6
                       cstr == "\x1b[29~"):  # Shift+F6
                     _logger.debug("keyed Shift+F6")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf18()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf18
 
                 elif (cstr == "KEY_F(19)" or  # Shift+F7
                       cstr == "\x1b[31~"):  # Shift+F7
                     _logger.debug("keyed Shift+F7")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf19()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf19
 
                 elif (cstr == "KEY_F(20)" or  # Shift+F8
                       cstr == "\x1b[32~"):  # Shift+F8
                     _logger.debug("keyed Shift+F8")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf20()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf20
 
                 elif (cstr == "KEY_F(21)" or  # Shift+F9
                       cstr == "\x1b[33~"):  # Shift+F9
                     _logger.debug("keyed Shift+F9")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf21()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf21
 
                 elif (cstr == "KEY_F(22)" or  # Shift+F10
                       cstr == "\x1b[34~"):  # Shift+F10
                     _logger.debug("keyed Shift+F10")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf22()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf22
 
                 elif cstr == "KEY_F(23)":
                     _logger.debug("keyed Shift+F11")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf23()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf23
 
                 elif cstr == "KEY_F(24)":
                     _logger.debug("keyed Shift+F12")
-
-                    if tns.pwait or tns.system_lock_wait:
-                        curses.flash()
-                        curses.beep()
-                    else:
-                        tns.pf24()
-                        self.rewrite_keylock = True
+                    aid_callable = tns.pf24
 
                 elif (cstr == "\x1b\x1b[5~" or  # Alt+PgUp Putty
                       cstr == "\x1b[5;3~" or  # Alt+PgUp Git Bash
@@ -2652,6 +2487,9 @@ HELP and HELP KEYS commands for more information.
                       cstr == "ALT_PGUP" or   # Alt+PgDn Windows
                       cstr == "\x1bKEY_PPAGE"):  # Alt+PgUp z/OS
                     _logger.debug("keyed Alt+PgUp")
+                    if keylock_aidbuf:  # if not all keys were processed
+                        keylock_aidbuf.clear()  # cancel, Alt+PgUp
+                        curses.beep()  # signal user something happened
 
                     session = ati.ati.session
                     sessions = ati.ati.sessions
@@ -2673,6 +2511,9 @@ HELP and HELP KEYS commands for more information.
                       cstr == "ALT_PGDN" or   # Alt+PgDn Windows
                       cstr == "\x1bKEY_NPAGE"):  # Alt+PgDn z/OS
                     _logger.debug("keyed Alt+PgDn")
+                    if keylock_aidbuf:  # if not all keys were processed
+                        keylock_aidbuf.clear()  # cancel, Alt+PgDn
+                        curses.beep()  # signal user something happened
 
                     session = ati.ati.session
                     sessions = ati.ati.sessions
@@ -2736,6 +2577,7 @@ HELP and HELP KEYS commands for more information.
                         if ((mbstate &
                              curses.BUTTON1_DOUBLE_CLICKED) != 0):
                             if tns.pwait or tns.system_lock_wait:
+                                keylock_aidbuf.clear()  # cancel, click
                                 curses.flash()
                                 curses.beep()
                             else:
@@ -2774,6 +2616,10 @@ HELP and HELP KEYS commands for more information.
                                 session = None
 
                         if session:
+                            if keylock_aidbuf:
+                                keylock_aidbuf.clear()
+                                curses.beep()
+
                             ati.ati.session = session
                             if ati.ati.seslost:
                                 return
@@ -2792,6 +2638,39 @@ HELP and HELP KEYS commands for more information.
 
                 else:
                     _logger.warning("Unknown key: %r", cstr)
+
+                # Process or buffer the AID (e.g. enter) as needed
+
+                if aid_callable:
+                    if tns.pwait or tns.system_lock_wait:
+                        bufsize = os.environ.get("ZTI_AIDBUFSIZE", "9")
+                        try:
+                            bufsize = int(bufsize)
+                        except ValueError:
+                            bufsize = 9
+
+                        if len(keylock_aidbuf) >= bufsize:  # if full
+                            curses.flash()  # signal user - full buff
+                            curses.beep()  # something happened
+                        else:
+                            keylock_aidbuf.append(aid_callable)
+
+                        aid_callable = None
+
+                if aid_callable or keylock_aidbuf:
+                    if not tns.pwait and not tns.system_lock_wait:
+                        if not aid_callable:
+                            aid_callable = keylock_aidbuf.pop(0)
+                        elif keylock_aidbuf:
+                            keylock_aidbuf.append(aid_callable)
+                            aid_callable = keylock_aidbuf.pop(0)
+
+                        aid_callable()
+                        if aid_callable is tns.clear:
+                            self.rewrite = True
+
+                        self.rewrite_keylock = True
+                        aid_callable = None
 
                 if tout == 0:
                     return 0  # timeout
