@@ -98,6 +98,7 @@ class Tnz:
         self.__secure = False
         self.__cert_verified = False
         self.__start_tls_hostname = None
+        self.__start_tls_completed = False
         self.__host_verified = False
         self._event = None
         self.__loop = None
@@ -2144,8 +2145,11 @@ class Tnz:
                     self.send_do(25, buffer=True)
 
             elif data[2] == 46:  # START_TLS
-                ssl_never = os.environ.get("SESSION_SSL") == "NEVER"
-                if ssl_never or not hasattr(self.__loop, "start_tls"):
+                if os.environ.get("SESSION_SSL") == "NEVER":
+                    self.__log_info("START_TLS SESSION_SSL=NEVER.")
+                    self.send_wont(data[2], buffer=True)
+
+                elif not hasattr(self.__loop, "start_tls"):
                     self._log_warn("START_TLS unsupported.")
                     self._log_warn("Python >= 3.7 required")
                     self.send_wont(data[2], buffer=True)
@@ -4503,6 +4507,7 @@ class Tnz:
 
         else:
             self._transport = transport
+            self.__start_tls_completed = True
             self.__secure = True
             if context.verify_mode == ssl.CERT_REQUIRED:
                 self.__cert_verified = True
@@ -4764,6 +4769,12 @@ class Tnz:
         """Bool indicating if connection is secure.
         """
         return self.__secure
+
+    @property
+    def start_tls_completed(self):
+        """Bool indicating if start_tls completed.
+        """
+        return self.__start_tls_completed
 
     @property
     def tn3270(self):
