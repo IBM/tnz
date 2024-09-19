@@ -781,13 +781,19 @@ class Zti(cmd.Cmd):
             elif tns.cert_verified:
                 verify = "cert"
 
+            session_ssl = int(not tns.start_tls_completed)
             if verify:
+                if not session_ssl:
+                    print(f" SESSION_SSL=0")
+
                 print(f" SESSION_SSL_VERIFY={verify}")
             else:
-                print(f" SESSION_SSL=1")
+                if session_ssl:
+                    print(f" SESSION_SSL=1")
+
                 print(f" SESSION_SSL_VERIFY=none")
         else:
-            print(f" SESSION_SSL=0")
+            print(f" SESSION_SSL=NEVER")
 
         print(f" SESSION_TN_ENHANCED={tns.tn3270e:d}")
         print(f" SESSION_DEVICE_TYPE={tns.terminal_type}")
