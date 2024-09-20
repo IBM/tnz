@@ -3747,6 +3747,10 @@ class Tnz:
         else:
             context.verify_mode = ssl.CERT_NONE
 
+        minimum_version = getenv("SESSION_SSL_MINIMUM_TLS")
+        if minimum_version == "1.1":
+            context.minimum_version = ssl.TLSVersion.TLSv1_1
+
         return context
 
     def __erase(self, saddr, eaddr):
