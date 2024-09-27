@@ -1613,8 +1613,8 @@ HELP and HELP KEYS commands for more information.
 
         if showcursor and rewrite:
             sesx = col1 + maxcol
-            if sesx + 8 <= cols:  # if fits
-                sesx = cols - 8
+            if sesx + 9 <= cols:  # if fits
+                sesx = cols - 9
                 sessions = ati.ati.sessions.split()
                 sescnt = len(sessions)
                 curidx = self.__sessel_y
