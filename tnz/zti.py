@@ -3451,13 +3451,13 @@ HELP and HELP KEYS commands for more information.
         if session_ps_size == "MAX":
             columns, lines = os.get_terminal_size()
             lines -= 4
-            columns = min(columns - 17, 160)
+            columns = min(columns - 19, 160)
             return _util.session_ps_14bit(lines, columns)
 
         if session_ps_size == "MAX255":
             columns, lines = os.get_terminal_size()
             lines -= 4
-            columns = max(columns - 17, 255)
+            columns = max(columns - 19, 255)
             return _util.session_ps_14bit(lines, columns)
 
         if session_ps_size == "FULL":
