@@ -56,13 +56,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-tags: true
-
     - uses: actions/setup-python@v5
       with:
         python-version: 3.12
 
+    - run: git fetch --tags
     - run: pip install --disable-pip-version-check -r requirements.txt
     - uses: actions/download-artifact@v4
     - run: twine upload --non-interactive -u __token__ dist/*
