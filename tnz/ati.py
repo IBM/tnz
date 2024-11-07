@@ -293,7 +293,6 @@ class Ati():
 
         self.__bytecnt = 0
         self.__checked_tty = False
-        self.__have_tty = False
         self.__zti = None
         self.__in_wait = False
 
@@ -1202,19 +1201,9 @@ class Ati():
             return 12
 
         tns = self.get_tnz()
-
-        zti = self.__zti
-        zti2 = zti
-        if zti:
-            display = self.__gv["DISPLAY"]
-            if display not in ("ALL", "HOST", "HOSTCODE"):
-                zti = None
-                zti2 = None
-            elif not self.connected:
-                zti = None
-                zti2 = None
-            elif not self.__gv["SHOWTYPE"]:
-                zti = None
+        zti = zti2 = self.__zti_display_check()
+        if zti and not self.__gv["SHOWTYPE"]:
+            zti = None
 
         if not value.startswith(reset):
             keyunlock = self.__gv["KEYUNLOCK"]
@@ -1998,17 +1987,12 @@ class Ati():
                     self.__logerror(">> WAIT TIMEOUT occurred")
 
                     raise_it = True
-                    if self.connected:
-                        if os.isatty(0) and os.isatty(1):
-                            if not self.__zti:
-                                from . import zti
-                                self.__zti = zti.create()
-
-                            if self.__zti:
-                                raise_it = False
-                                rval = self.__zti.onerror()
-                                if rval is None:  # user force ati_rc=1
-                                    ati_rc = 1
+                    if self.connected and self.__zti:
+                        with self:  # push/pop global ati for zti
+                            raise_it = False
+                            rval = self.__zti.onerror()
+                            if rval is None:  # user force ati_rc=1
+                                ati_rc = 1
 
                         self.__shell_mode()
 
@@ -2240,7 +2224,8 @@ class Ati():
         tns = self.__session_tnz.pop(session, None)
         if not self.__session_tnz:
             next_session = "NONE"
-            self.__shell_mode()
+            if self.__zti_display_check():
+                self.__shell_mode()
 
         self.__gv["SESSION"] = next_session
         self.__refresh_vars()
@@ -2373,16 +2358,7 @@ class Ati():
         session = self.session
         tns = self.__session_tnz[session]
         seslost = tns.seslost
-
-        if self.connected and not in_wait:
-            zti = self.__zti
-        else:
-            zti = None
-
-        display = self.__gv["DISPLAY"]
-        if zti and display not in ("ALL", "HOST", "HOSTCODE"):
-            zti = None
-
+        zti = None if in_wait else self.__zti_display_check()
         if tns.updated:
             timeout = 0
 
@@ -2556,15 +2532,7 @@ class Ati():
 
         self.__gv["SESLOST"] = ""
         self.ses_exc = None
-
-        zti = self.__zti
-        if zti:
-            display = self.__gv["DISPLAY"]
-            if display not in ("ALL", "HOST", "HOSTCODE"):
-                zti = None
-            elif not self.connected:
-                zti = None
-
+        zti = self.__zti_display_check()
         if zti:
             zti.rewrite = True
 
@@ -2690,6 +2658,25 @@ class Ati():
             whenv = self.__gv[name]
 
         return whenv.pri[0]
+
+    def __zti_check(self):
+        if not self.connected:
+            return None
+
+        if not self.__zti and not self.__checked_tty:
+            self.__checked_tty = True
+            if os.isatty(0) and os.isatty(1):
+                from . import zti
+                self.__zti = zti.create()
+
+        return self.__zti
+
+    def __zti_display_check(self):
+        if self.__gv["DISPLAY"] in ("ALL", "HOST", "HOSTCODE"):
+            if ati.__session_tnz is self.__session_tnz:  # same sessions
+                return self.__zti_check()
+
+        return None
 
     # static methods
 
@@ -3011,26 +2998,22 @@ class Ati():
 
     @display.setter
     def display(self, value):
+        global ati
         valstr = str(value).upper().strip()
         if self.connected:
             display = self.__gv["DISPLAY"]
             if valstr in ("ALL", "HOST", "HOSTCODE"):
                 show = display not in ("ALL", "HOST", "HOSTCODE")
-                if not self.__checked_tty:
-                    self.__checked_tty = True
-                    show = False
-                    if os.isatty(0) and os.isatty(1):
-                        self.__have_tty = True
+                if self.__zti_check():
+                    if ati.__gv is not self.__gv:
+                        ati = self  # set global ati.ati variable
+                        self.__shell_mode()
                         show = True
 
-                if self.__have_tty and self.__zti is None:
-                    from . import zti
-                    self.__zti = zti.create()
+                    if show and self.get_tnz():
+                        self.__zti.show()
 
-                if show and self.__zti and self.get_tnz():
-                    self.__zti.show()
-
-            elif display in ("ALL", "HOST", "HOSTCODE"):
+            elif self.__zti_display_check():
                 self.__shell_mode()
 
         self.__gv["DISPLAY"] = valstr
