@@ -1651,13 +1651,13 @@ class Term():
         if when is None:
             when = termios.TCSANOW
 
-        while True:
-            try:
-                termios.tcsetattr(termi_fd, when, attr)
-                return
+        try:
+            termios.tcsetattr(termi_fd, when, attr)
 
-            except termios.error:
-                _logger.exception("tcsetattr")
+        except termios.error:
+            raise _TermlibError("tcsetattr error")
+
+        return
 
     @classmethod
     def __stop_thread(cls):
