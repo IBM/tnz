@@ -2,7 +2,7 @@ black==24.10.0
 build==1.2.2.post1
 ebcdic==1.1.1; sys_platform!="zos"
 griffe==1.5.1
-mkdocs-material==9.5.43
+mkdocs-material==9.5.44
 mkdocs-minify-plugin==0.8.0
 mkdocstrings-python==1.12.2
 pycodestyle==2.12.1
