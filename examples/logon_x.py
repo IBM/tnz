@@ -8,8 +8,8 @@ load_dotenv(override=True) # take environment variables from .env
 em = Emulator(visible=True, args=["-trace",
                                   "-tracefile",
                                   "example.log",
-                                  "-session_code_page", 
-                                  os.getenv("SESSION_CODE_PAGE", "cp1047"),
+                                  "-charset", 
+                                  os.getenv("CHARSET", "norwegian"),
                                   ])
 em.connect(host=os.getenv("SESSION_HOST", "mvs1"),
            port=os.getenv("SESSION_PORT", "992"))

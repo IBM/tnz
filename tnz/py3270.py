@@ -56,6 +56,45 @@ __all__ = ["AnsiText",
            "yes", "no", "remove"]
 __author__ = "Neil Johnson"
 
+# mapping charset options to codepages
+# see https://x3270.bgp.nu/Unix/x3270-man.html#Character-Sets
+CHARSET_CODE_PAGES = {"apl": "037",
+                      "belgian":"500",
+                      "belgian-euro":"1148",
+                      "bracket":"037",
+                      "brazilian":"275",
+                      "chinese-gb18030":"1388",
+                      "cp1047":"1047",
+                      "cp870":"870",
+                      "finnish":"278",
+                      "finnish-euro":"1143",
+                      "french":"297",
+                      "french-euro":"1147",
+                      "german":"273",
+                      "german-euro":"1141",
+                      "greek":"423",
+                      "hebrew":"424",
+                      "icelandic":"871",
+                      "icelandic-euro":"1149",
+                      "italian":"280",
+                      "italian-euro":"1144",
+                      "japanese-kana":"930",
+                      "japanese-latin":"939",
+                      "norwegian":"277",
+                      "norwegian-euro":"1142",
+                      "russian":"880",
+                      "simplified-chinese":"935",
+                      "slovenian":"870",
+                      "spanish":"284",
+                      "spanish-euro":"1145",
+                      "thai":"1160",
+                      "traditional-chinese":"937",
+                      "turkish":"1026",
+                      "uk":"285",
+                      "uk-euro":"1146",
+                      "us-euro":"1140",
+                      "us-intl":"037",
+                      }
 
 def _x3270(func):
     @wraps(func)
@@ -989,9 +1028,13 @@ class Emulator(object):
             idx = args.index("-tracefile")
             if idx >= 0:
                 ati.set("LOGDEST", args[idx+1])
-            idx = args.index("-session_code_page")
+            idx = args.index("-charset")
             if idx >= 0:
-                ati.set("SESSION_CODE_PAGE", args[idx+1])           
+                try:
+                    code_page = CHARSET_CODE_PAGES[args[idx+1]]
+                    ati.set("SESSION_CODE_PAGE", code_page)  
+                except (KeyError, IndexError):
+                    pass  # fail silently?                         
 
     # [public] methods
 
