@@ -989,6 +989,9 @@ class Emulator(object):
             idx = args.index("-tracefile")
             if idx >= 0:
                 ati.set("LOGDEST", args[idx+1])
+            idx = args.index("-session_code_page")
+            if idx >= 0:
+                ati.set("SESSION_CODE_PAGE", args[idx+1])           
 
     # [public] methods
 

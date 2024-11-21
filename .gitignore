@@ -11,3 +11,12 @@ _version.py
 # Vim files
 *~
 *.sw?
+
+# virtual environment
+.venv
+
+# VScode editor configs
+.vscode/
+
+# specific environment variables, e.g. host, user, password
+.env

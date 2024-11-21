@@ -10,4 +10,5 @@ pylint==3.3.1
 pytest==8.3.3; python_version>="3.8"
 pytest>=7.4.2; python_version<"3.8"
 twine==5.1.1; sys_platform!="zos"
-wheel==0.45.0
+wheel==0.44.0
+python-dotenv==1.0.1
