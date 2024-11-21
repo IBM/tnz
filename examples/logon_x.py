@@ -1,18 +1,12 @@
-from dotenv import load_dotenv
-import os
-
 from tnz.py3270 import Emulator
-
-load_dotenv(override=True) # take environment variables from .env
 
 em = Emulator(visible=True, args=["-trace",
                                   "-tracefile",
                                   "example.log",
                                   "-charset", 
-                                  os.getenv("CHARSET", "norwegian"),
+                                  "cp1047",
                                   ])
-em.connect(host=os.getenv("SESSION_HOST", "mvs1"),
-           port=os.getenv("SESSION_PORT", "992"))
+em.connect(host="mvs1", port="992")
 
 def string_wait(string):
     while True:
