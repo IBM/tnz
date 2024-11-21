@@ -2230,7 +2230,13 @@ class Ati():
         self.__gv["SESSION"] = next_session
         self.__refresh_vars()
         if tns:
-            tns.shutdown()
+            if self.__loop.is_running():
+                tns.shutdown()
+            else:
+                async def shutdown():
+                    tns.shutdown()
+
+                self.__loop.run_until_complete(shutdown())
 
         # elif connected and zti, show session? TODO
 
