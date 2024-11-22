@@ -1027,12 +1027,12 @@ class Emulator(object):
                     charset_option = None
                 if charset_option:
                     try:
-                        code_page = CHARSET_CODE_PAGES[charset_option]  
+                        code_page = CHARSET_CODE_PAGES[charset_option]
                     except KeyError:
                         code_page = charset_option
                     ati.set("SESSION_CODE_PAGE", code_page)
                 else:
-                    ati.set("SESSION_CODE_PAGE", "")                        
+                    ati.set("SESSION_CODE_PAGE", "")
 
     # [public] methods
 
