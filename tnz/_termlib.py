@@ -13,7 +13,7 @@ REFERENCES:
     https://docs.microsoft.com/windows/console/
         console-virtual-terminal-sequences
 
-Copyright 2021 IBM Inc. All Rights Reserved.
+Copyright 2021, 2024 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
