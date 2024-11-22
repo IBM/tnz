@@ -6,7 +6,6 @@ ati.set("LOGDEST", "example.log")
 ati.set("ONERROR", "1")
 ati.set("DISPLAY", "HOST")
 ati.set("SESSION_HOST", "mvs1")
-ati.set("SESSION_CODE_PAGE", "cp1047")
 ati.set("SESSION", "A")
 
 ati.wait(lambda: ati.scrhas("Enter:  "))

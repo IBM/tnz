@@ -16,7 +16,7 @@ In such a program, other than the from/import
 statement, the remainder of the program is a
 valid script for the x3270 family of programs.
 
-Copyright 2021 IBM Inc. All Rights Reserved.
+Copyright 2021, 2024 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -64,31 +64,22 @@ CHARSET_CODE_PAGES = {"apl": "037",
                       "bracket":"037",
                       "brazilian":"275",
                       "chinese-gb18030":"1388",
-                      "cp1047":"1047",
-                      "cp870":"870",
                       "finnish":"278",
                       "finnish-euro":"1143",
                       "french":"297",
                       "french-euro":"1147",
                       "german":"273",
                       "german-euro":"1141",
-                      "greek":"423",
                       "hebrew":"424",
                       "icelandic":"871",
                       "icelandic-euro":"1149",
                       "italian":"280",
                       "italian-euro":"1144",
-                      "japanese-kana":"930",
-                      "japanese-latin":"939",
                       "norwegian":"277",
                       "norwegian-euro":"1142",
-                      "russian":"880",
-                      "simplified-chinese":"935",
                       "slovenian":"870",
                       "spanish":"284",
                       "spanish-euro":"1145",
-                      "thai":"1160",
-                      "traditional-chinese":"937",
                       "turkish":"1026",
                       "uk":"285",
                       "uk-euro":"1146",
@@ -1031,10 +1022,17 @@ class Emulator(object):
             idx = args.index("-charset")
             if idx >= 0:
                 try:
-                    code_page = CHARSET_CODE_PAGES[args[idx+1]]
-                    ati.set("SESSION_CODE_PAGE", code_page)  
-                except (KeyError, IndexError):
-                    pass  # fail silently?                         
+                    charset_option = args[idx+1]
+                except IndexError:
+                    charset_option = None
+                if charset_option:
+                    try:
+                        code_page = CHARSET_CODE_PAGES[charset_option]  
+                    except KeyError:
+                        code_page = charset_option
+                    ati.set("SESSION_CODE_PAGE", code_page)
+                else:
+                    ati.set("SESSION_CODE_PAGE", "")                        
 
     # [public] methods
 

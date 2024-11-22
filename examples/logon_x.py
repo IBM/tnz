@@ -2,11 +2,9 @@ from tnz.py3270 import Emulator
 
 em = Emulator(visible=True, args=["-trace",
                                   "-tracefile",
-                                  "example.log",
-                                  "-charset", 
-                                  "cp1047",
-                                  ])
-em.connect(host="mvs1", port="992")
+                                  "example.log"])
+em.connect('mvs1')
+
 
 def string_wait(string):
     while True:
