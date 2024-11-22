@@ -2197,8 +2197,8 @@ class Ati():
         return "\n".join(lines)
 
     def __close(self):
-        for tns in self.__session_tnz.values():
-            tns.shutdown()
+        while self.__session_tnz:
+            self.__drop_session()
 
     def __drop_session(self):
         """perform the DROP SESSION function
