@@ -16,7 +16,7 @@ In such a program, other than the from/import
 statement, the remainder of the program is a
 valid script for the x3270 family of programs.
 
-Copyright 2021 IBM Inc. All Rights Reserved.
+Copyright 2021, 2024 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -55,6 +55,37 @@ __all__ = ["AnsiText",
            "tracks", "cylinders", "avblock",
            "yes", "no", "remove"]
 __author__ = "Neil Johnson"
+
+# mapping charset options to codepages
+# see https://x3270.bgp.nu/Unix/x3270-man.html#Character-Sets
+CHARSET_CODE_PAGES = {"apl": "037",
+                      "belgian": "500",
+                      "belgian-euro": "1148",
+                      "bracket": "037",
+                      "brazilian": "275",
+                      "chinese-gb18030": "1388",
+                      "finnish": "278",
+                      "finnish-euro": "1143",
+                      "french": "297",
+                      "french-euro": "1147",
+                      "german": "273",
+                      "german-euro": "1141",
+                      "hebrew": "424",
+                      "icelandic": "871",
+                      "icelandic-euro": "1149",
+                      "italian": "280",
+                      "italian-euro": "1144",
+                      "norwegian": "277",
+                      "norwegian-euro": "1142",
+                      "slovenian": "870",
+                      "spanish": "284",
+                      "spanish-euro": "1145",
+                      "turkish": "1026",
+                      "uk": "285",
+                      "uk-euro": "1146",
+                      "us-euro": "1140",
+                      "us-intl": "037",
+                      }
 
 
 def _x3270(func):
@@ -989,6 +1020,20 @@ class Emulator(object):
             idx = args.index("-tracefile")
             if idx >= 0:
                 ati.set("LOGDEST", args[idx+1])
+            idx = args.index("-charset")
+            if idx >= 0:
+                try:
+                    charset_option = args[idx+1]
+                except IndexError:
+                    charset_option = None
+                if charset_option:
+                    try:
+                        code_page = CHARSET_CODE_PAGES[charset_option]
+                    except KeyError:
+                        code_page = charset_option
+                    ati.set("SESSION_CODE_PAGE", code_page)
+                else:
+                    ati.set("SESSION_CODE_PAGE", "")
 
     # [public] methods
 
