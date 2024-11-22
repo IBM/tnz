@@ -88,11 +88,12 @@ Environment variables used:
     ZTI_TITLE (see zti.py)
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021, 2023 IBM Inc. All Rights Reserved.
+Copyright 2021, 2024 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
 import asyncio
+import atexit
 import functools
 import inspect
 import logging
@@ -2195,6 +2196,10 @@ class Ati():
 
         return "\n".join(lines)
 
+    def __close(self):
+        while self.__session_tnz:
+            self.__drop_session()
+
     def __drop_session(self):
         """perform the DROP SESSION function
 
@@ -2598,6 +2603,7 @@ class Ati():
         loop = self.__loop
         if not loop:
             loop = asyncio.new_event_loop()
+            atexit.register(self.__close)  # help with loop shutdown
 
         loop.call_soon(connect)
         loop.stop()
