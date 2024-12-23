@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools==75.6.0", "versioningit==3.1.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tnz"
+dynamic = ["version"]
+description = "Telnet-3270 to Z tool and library"
+requires-python = ">=3.6"
+
+[[project.authors]]
+name = "Neil Johnson"
+
+[[project.authors]]
+email = "najohnsn@us.ibm.com"
+
+[project.license]
+text = "Apache-2.0"
+
+[project.optional-dependencies]
+full = ["ebcdic"]
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.scripts]
+zti = "tnz.zti:main"
+
+[project.urls]
+documentation = "https://ibm.github.io/tnz"
+homepage = "https://github.com/IBM/tnz"
+issues = "https://github.com/IBM/tnz/issues"
+releasenotes = "https://github.com/IBM/tnz/releases/latest"
+source = "https://github.com/IBM/tnz"
+
+[tool.setuptools]
+packages = ["tnz"]
+
+[tool.setuptools.package-data]
+tnz = ["logging.json"]
+
+[tool.versioningit.format]
+distance = "{next_version}-dev.{distance}+{vcs}{rev}"
+dirty = "{next_version}+dirty"
+distance-dirty = "{next_version}-dev.{distance}+{vcs}{rev}.dirty"
+
+[tool.versioningit.next-version]
+method = "smallest"
+
+[tool.versioningit.write]
+file = "tnz/_version.py"
