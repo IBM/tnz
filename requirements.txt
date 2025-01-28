@@ -1,13 +1,13 @@
 black==24.10.0
 build==1.2.2.post1
 ebcdic==1.1.1; sys_platform!="zos"
-griffe==1.5.1
-mkdocs-material==9.5.43
+griffe==1.5.5
+mkdocs-material==9.5.50
 mkdocs-minify-plugin==0.8.0
-mkdocstrings-python==1.12.2
+mkdocstrings-python==1.13.0
 pycodestyle==2.12.1
-pylint==3.3.1
-pytest==8.3.3; python_version>="3.8"
+pylint==3.3.3
+pytest==8.3.4; python_version>="3.8"
 pytest>=7.4.2; python_version<"3.8"
-twine==5.1.1; sys_platform!="zos"
-wheel==0.44.0
+twine==6.0.1; sys_platform!="zos"
+wheel==0.45.1

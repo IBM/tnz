@@ -17,6 +17,7 @@ Copyright 2021, 2024 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
+
 import asyncio
 import enum
 import json
@@ -3652,7 +3653,12 @@ class Tnz:
         row += rowcnt
         self.__readlines_row = row
         if (keep_all or row >= maxrow) and self.readlines_pa2:
-            if not self.__ddmopen:  # if get/put not in progress
+            if (
+                not self.__ddmopen  # get/put not in progress
+                and not self.pwait  # and no input inhibit ...
+                and not self.system_lock_wait
+                and self.read_state != self.__ReadState.RENTER
+            ):
                 self.pa2()
 
     def __append_char_bytes(self, blst, saddr, eaddr):
