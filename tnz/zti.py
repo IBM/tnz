@@ -27,6 +27,8 @@ Environment variables used:
     TNZ_LOGGING (see tnz.py)
     ZTI_AIDBUFSIZE (9 is default)
     ZTI_AUTOSIZE
+    ZTI_CURSOR_INSERT
+    ZTI_CURSOR_REPLACE
     ZTI_SECLEVEL (see tnz.py)
     ZTI_TITLE
     _BPX_TERMPATH (see _termlib.py)
@@ -35,6 +37,7 @@ Copyright 2021, 2024 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
+
 if __name__ == "__main__":
     # We want to support starting by 'python -m tnz.zti', but that can
     # generally be problematic because the zti module is imported as
@@ -47,6 +50,7 @@ if __name__ == "__main__":
     # eventually dropping support for 'python -m tnz.zti' so that we can
     # avoid this.
     from tnz import zti
+
     raise SystemExit(zti.main())
 
 import atexit
@@ -135,7 +139,7 @@ class Zti(cmd.Cmd):
         self.__has_color = None
 
         self.__prog_curs_vis = 0  # cursor invisible in prog mode
-        self.__cur_curs_vis = 1  # current cursor state
+        self.__cur_curs_vis = -1  # current cursor state
         self.__shell_mousemask = None
 
         self.ddmrecv = False  # allow host-initiated ind$file get
@@ -1483,6 +1487,17 @@ HELP and HELP KEYS commands for more information.
 
             self.__has_color = False
 
+    def __curs_vis(self, insmode):
+        if insmode:
+            curval = os.getenv("ZTI_CURSOR_INSERT", "")
+        else:
+            curval = os.getenv("ZTI_CURSOR_REPLACE", "")
+
+        if curval.isdigit():
+            return -int(curval)-1
+
+        return 2 if insmode else 1
+
     def __dirty_range(self, start, end, tns=None):
         """Mark a range of screen addresses as dirty.
 
@@ -1978,7 +1993,7 @@ HELP and HELP KEYS commands for more information.
         if show:
             self.__prog_curs_vis = 0
         else:
-            self.__prog_curs_vis = 1
+            self.__prog_curs_vis = self.__curs_vis(False)
 
         tout = timeout
         if timeout > 0:
@@ -2038,10 +2053,8 @@ HELP and HELP KEYS commands for more information.
                                 currow <= endy and
                                 curcol > begx and
                                 curcol <= endx):
-                            if insmode:
-                                self.__prog_curs_vis = 2  # very visible
-                            else:
-                                self.__prog_curs_vis = 1  # visible
+                            curs_vis = self.__curs_vis(insmode)
+                            self.__prog_curs_vis = curs_vis
 
                             xpos, ypos = self.twin_loc
                             _logger.debug("before win.move")
@@ -2330,10 +2343,7 @@ HELP and HELP KEYS commands for more information.
                     _logger.debug("keyed Insert")
 
                     insmode = (not insmode)
-                    if insmode:
-                        self.__prog_curs_vis = 2  # very visible
-                    else:
-                        self.__prog_curs_vis = 1  # visible
+                    self.__prog_curs_vis = self.__curs_vis(insmode)
 
                 elif (cstr == "\x1b1" or  # ESC+1 (Alt+1)
                       cstr == "ALT_1" or  # ESC+1 (Alt+1)
