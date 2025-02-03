@@ -4,7 +4,7 @@ title: Introduction
 
 Use a standard terminal emulator as a 3270 terminal interface. Write
 scripts to automate 3270 terminal interaction. This is both a 3270
-terminal emulator and a Python libary. The zti module provides a 3270
+terminal emulator and a Python library. The zti module provides a 3270
 user interface through a Windows Command Prompt or a unix/ascii
 terminal. The tnz module handles the interface to the 3270 data
 stream. The ati module allows for easier 3270 terminal automation.
