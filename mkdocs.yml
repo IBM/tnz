@@ -3,6 +3,7 @@ nav:
   - Colors: colors.md
   - Screen Sizing: screen-sizing.md
   - Security: security.md
+  - File Transfer: transfer.md
   - API Reference:
     - ati: ati.md
     - ati (compatability): ati-compat.md
@@ -89,4 +90,4 @@ markdown_extensions:
     - pymdownx.details:
     - pymdownx.tabbed:
 
-copyright: Copyright &copy; IBM 2022, 2023
+copyright: Copyright &copy; IBM 2022, 2025
