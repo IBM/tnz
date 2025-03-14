@@ -1968,7 +1968,10 @@ class Ati():
                     rrv = self.__refresh(tout, keylock=False)
             elif tout > 0:
                 sleepcnt += 1
-                time.sleep(tout)
+                if self.__loop:
+                    self.__loop.run_until_complete(asyncio.sleep(tout))
+                else:
+                    time.sleep(tout)
 
             if rrv == -2:  # if force skip
                 self.__logerror(">> User SKIP")
@@ -2242,6 +2245,11 @@ class Ati():
                     tns.shutdown()
 
                 self.__loop.run_until_complete(shutdown())
+
+            while not tns.seslost:
+                tns.wait()
+
+            tns.seslost = True  # clear any exc that may ref tns
 
         # elif connected and zti, show session? TODO
 
