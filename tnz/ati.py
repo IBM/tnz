@@ -2238,18 +2238,12 @@ class Ati():
         self.__gv["SESSION"] = next_session
         self.__refresh_vars()
         if tns:
-            if self.__loop.is_running():
-                tns.shutdown()
-            else:
-                async def shutdown():
-                    tns.shutdown()
+            tns.shutdown()
+            if not self.__loop.is_running():
+                while not tns.seslost:
+                    tns.wait()
 
-                self.__loop.run_until_complete(shutdown())
-
-            while not tns.seslost:
-                tns.wait()
-
-            tns.seslost = True  # clear any exc that may ref tns
+                tns.seslost = True  # clear any exc that may ref tns
 
         # elif connected and zti, show session? TODO
 
