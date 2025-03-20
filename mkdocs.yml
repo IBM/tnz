@@ -1,5 +1,6 @@
 nav:
   - Introduction: index.md
+  - Zti: zti-guide.md
   - Colors: colors.md
   - Screen Sizing: screen-sizing.md
   - Security: security.md

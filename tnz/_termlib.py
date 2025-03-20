@@ -435,6 +435,8 @@ class Term():
             if curs_vis:
                 if curs_vis == 2:
                     pendlist.append("\x1b[1 q")
+                elif curs_vis < 0:
+                    pendlist.append(f"\x1b[{-curs_vis-1} q")
                 else:
                     pendlist.append("\x1b[3 q")
 
@@ -1032,6 +1034,10 @@ class Term():
     @_log_errors
     def curs_set(cls, visibility):
         """Set cursor visibility.
+           0  - Invisible
+           1  - Terminal-specific normal mode
+           2  - Terminal-specific high visibility mode
+           <0 - Use absolute value minus one for DECSCUSR value
         """
         cls.__initscr_required()
 
@@ -1040,6 +1046,8 @@ class Term():
         if cls.__alt_screen:
             if visibility == 2:
                 cls.__termo.write("\x1b[1 q\x1b[?25h")
+            elif visibility < 0:
+                cls.__termo.write(f"\x1b[{-visibility-1} q\x1b[?25h")
             elif visibility:
                 cls.__termo.write("\x1b[3 q\x1b[?25h")
             else:
