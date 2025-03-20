@@ -31,6 +31,7 @@ Environment variables used:
     ZTI_CURSOR_REPLACE
     ZTI_SECLEVEL (see tnz.py)
     ZTI_TITLE
+    ZTI_MACROS_DIR (~/.zti-mac is default)
     _BPX_TERMPATH (see _termlib.py)
 
 Copyright 2021, 2024 IBM Inc. All Rights Reserved.
@@ -119,6 +120,11 @@ class Zti(cmd.Cmd):
         if os.getenv("ZTI_AUTOSIZE"):
             self.autosize = True
 
+        self.macros_dir = os.getenv("ZTI_MACROS_DIR")
+        if self.macros_dir is None or not os.path.isdir(
+           self.macros_dir):
+            self.macros_dir = os.path.expanduser("~/.zti-mac")
+
         self.pend_intro = None
         self.__dirty_ranges = []
         self.single_session = False
@@ -172,6 +178,8 @@ class Zti(cmd.Cmd):
             Zti._zti = self
 
         self.__install_plugins()
+
+        self.__register_macros()
 
     # Methods
 
@@ -2703,6 +2711,55 @@ HELP and HELP KEYS commands for more information.
             self.__cur_curs_vis = self.__prog_curs_vis
 
         self.stdscr.refresh(_win_callback=self.__set_event_fn())
+
+    def __register_macros(self):
+        import importlib.util
+        import sys
+        import types
+
+        if not os.path.isdir(self.macros_dir):
+            _logger.exception(f"{self.macros_dir} is not a directory")
+            return
+
+        for macro_file in os.listdir(self.macros_dir):
+            if not macro_file.endswith(".py"):
+                continue
+
+            if len(macro_file.split('.')) > 1:
+                continue
+
+            macro_name = macro_file.split('.')[0]
+
+            # Ignore macros which already exist
+            if f"do_{macro_name}" in self.get_names():
+                continue
+
+            macro_path = os.path.join(self.macros_dir, macro_file)
+
+            # Import the user macro as a module
+            macro_spec = importlib.util.spec_from_file_location(
+                f"module.{macro_name}", macro_path)
+            macro_module = importlib.util.module_from_spec(macro_spec)
+            sys.modules[f"module.{macro_name}"] = macro_module
+            macro_spec.loader.exec_module(macro_module)
+
+            # Find the function
+            if hasattr(macro_module, f"do_{macro_name}"):
+                # Create a new bound method for the `Zti` class for this
+                # function
+                setattr(Zti, f"do_{macro_name}",
+                        types.MethodType(
+                            getattr(macro_module, f"do_{macro_name}"),
+                            self))
+
+                # Check if a corresponding help function exists
+                if hasattr(macro_module, f"help_{macro_name}"):
+                    # Create a new bound method for the `Zti` class for this
+                    # function
+                    setattr(Zti, f"help_{macro_name}",
+                            types.MethodType(
+                                getattr(macro_module, f"help_{macro_name}"),
+                                self))
 
     def __scale_size(self, maxrow, maxcol):
         arows, acols = self.autosize
