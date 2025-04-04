@@ -2,7 +2,8 @@
 
 ## Supported Versions
 
-Only the [latest version](releases/latest) is considered for security
+Only the [latest version](https://github.com/IBM/tnz/releases/latest
+) is considered for security
 updates.
 
 ## Reporting Security Issues
