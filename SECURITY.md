@@ -20,7 +20,8 @@ Alternatively, you can report a security issue via e-mail to the
 [tnz maintainers](https://github.com/IBM/tnz/blob/main/MAINTAINERS.md).
 
 The maintainers intend to address security vulnerabilities of medium or
-higher severity within 60 days of being publicly known. Expect critical
+higher severity within 60 days of being publicly known. An initial
+response should be made in less than 14 days. Expect critical
 vulnerabilities to be fixed rapidly after they are reported. Refer to
 the linked [OpenSSF vulnerability response process](
 https://github.com/ossf/oss-vulnerability-guide/blob/main/maintainer-guide.md#apply-the-vulnerability-response-process
