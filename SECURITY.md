@@ -17,7 +17,7 @@ https://docs.github.com/code-security/security-advisories/guidance-on-reporting-
 ) for full instructions.
 
 Alternatively, you can report a security issue via e-mail to the
-[tnz maintainers](MAINTAINERS.md).
+[tnz maintainers](https://github.com/IBM/tnz/blob/main/MAINTAINERS.md).
 
 The maintainers intend to address security vulnerabilities of medium or
 higher severity within 60 days of being publicly known. Expect critical
