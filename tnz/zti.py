@@ -2730,14 +2730,16 @@ HELP and HELP KEYS commands for more information.
 
             # Ignore macros with uppercase letters or
             # spaces
-            uppercase = [letter for letter in macro_name if letter.isupper()]
+            uppercase = [letter for letter in
+                         macro_name if letter.isupper()]
             if ' ' in macro_name or len(uppercase) != 0:
                 continue
 
             # Ignore macros which already exist
             if f"do_{macro_name}" in self.get_names():
                 _logger.warning(f"Function with name do_{macro_name}"
-                                " already exists, macro registration failed")
+                                " already exists, macro registration"
+                                " failed")
                 continue
 
             macro_path = os.path.join(macros_dir, macro_file)
@@ -2753,7 +2755,7 @@ HELP and HELP KEYS commands for more information.
             if hasattr(macro_module, f"do_{macro_name}"):
                 def do_macro(zti, arg):
                     self.__bg_wait_end()
-                    macro_func = getattr(macro_module, 
+                    macro_func = getattr(macro_module,
                                          f"do_{macro_name}")
                     macro_func(zti, arg)
 
@@ -2766,11 +2768,11 @@ HELP and HELP KEYS commands for more information.
 
                 # Check if a corresponding help function exists
                 if hasattr(macro_module, f"help_{macro_name}"):
-                    # Create a new bound method for the `Zti` class 
+                    # Create a new bound method for the `Zti` class
                     # for this function
                     setattr(Zti, f"help_{macro_name}",
                             types.MethodType(
-                                getattr(macro_module, 
+                                getattr(macro_module,
                                         f"help_{macro_name}"),
                                 self))
 
