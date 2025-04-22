@@ -40,7 +40,9 @@ pip3 install ebcdic tnz
 
 ## Usage
 ### Automation
-See [examples](examples/) to get started writing a script to automate 3270 interaction.
+See [examples](
+https://github.com/IBM/tnz/tree/main/examples
+) to get started writing a script to automate 3270 interaction.
 
 ### Emulator
 Run the installed zti (Z Terminal Interface) script to start the
@@ -54,7 +56,9 @@ you can run zti with `python -m tnz.zti` instead.
 
 Starting `zti` takes you into the zti command line interface shell.
 Key tab for command completion, up/down for command history.
-![screenshot](docs/png/zti-prompt1.png "shell")
+![screenshot](
+https://github.com/IBM/tnz/raw/main/docs/png/zti-prompt1.png
+"shell")
 
 The `goto` command takes you to a full screen 3270 interface. When
 space is available in the terminal screen/window, a status line is
@@ -66,19 +70,27 @@ The basic syntax of `goto` is:
 goto fully-qualified-host-name[:port]
 ```
 
-![screenshot](docs/png/zti-host1.png "3270 full screen")
+![screenshot](
+https://github.com/IBM/tnz/raw/main/docs/png/zti-host1.png
+"3270 full screen")
 
 In Windows, the Lucida Console font works well with graphic character
 APL symbols exploited by ISPF.
-![screenshot](docs/png/zti-host2.png "Screenshot with APL symbols")
+![screenshot](
+https://github.com/IBM/tnz/raw/main/docs/png/zti-host2.png
+"Screenshot with APL symbols")
 
 Large and arbitrarily-sized screens are supported.
-![screenshot](docs/png/zti-host3.png "Screenshot with large size")
+![screenshot](
+https://github.com/IBM/tnz/raw/main/docs/png/zti-host3.png
+"Screenshot with large size")
 
 Standard unix/ascii terminals are supported. In the screenshot below,
 PuTTY is used as the terminal emulator. The connection was made from
 PuTTY to z/OS via ssh and zti is running on z/OS.
-![screenshot](docs/png/zti-host4.png "Screenshot using PuTTY")
+![screenshot](
+https://github.com/IBM/tnz/raw/main/docs/png/zti-host4.png
+"Screenshot using PuTTY")
 
 The code in this repository aims to be portable. To achieve this, the
 number of dependencies is kept to a minimum. The only hard
@@ -127,7 +139,12 @@ See [here](https://ibm.github.io/tnz/).
 For additional details, see docstrings in source code.
 
 ## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](
+https://github.com/IBM/tnz/blob/main/CONTRIBUTING.md
+).
+
+## Security
+See [SECURITY.md](https://github.com/IBM/tnz/blob/main/SECURITY.md).
 
 ## Acknowledgments
 Hats off to the team responsible for the IBM internal Automated Task
