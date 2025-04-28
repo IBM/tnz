@@ -1,4 +1,4 @@
-from tnz.ati import ati
+from tnz import ati
 
 def do_logon(zti, arg):
     logon_setup()
@@ -14,11 +14,6 @@ def do_logon(zti, arg):
     ati.wait(lambda: ati.scrhas("***"))
     ati.send("[enter]")
     ati.wait(lambda: ati.scrhas("READY"))
-    ati.send("logon[enter]")
-    ati.wait(lambda: ati.scrhas("LOGGED OFF"))
-
-    # disconnect from host
-    ati.drop("SESSION")
 
 def logon_setup():
     ati.set("TRACE", "ALL")

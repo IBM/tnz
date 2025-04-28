@@ -24,4 +24,4 @@ This function will be registered as the help command for the main macro command.
 
 See `examples/macros/logon.py` for an example of a user macro.
 
-A macro file name may not contain more than one period character. User macros which conflict with existing ZTI commands are ignored.
+User macros which conflict with existing ZTI commands are ignored.

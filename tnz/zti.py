@@ -57,6 +57,7 @@ import atexit
 import cmd
 import logging
 import os
+import pathlib
 import platform
 import signal
 import sys
@@ -2716,23 +2717,20 @@ HELP and HELP KEYS commands for more information.
             macros_dir = os.path.expanduser("~/.zti-mac")
 
         if not os.path.isdir(macros_dir):
-            _logger.exception(f"{macros_dir} is not a directory")
+            _logger.error(f"{macros_dir} is not a directory")
             return
 
         for macro_file in os.listdir(macros_dir):
-            if not macro_file.endswith(".py"):
+            macro_file_path = pathlib.PurePath(macro_file)
+
+            if macro_file_path.suffix != ".py":
                 continue
 
-            if len(macro_file.split('.')) > 1:
-                continue
-
-            macro_name = macro_file.split('.')[0]
+            macro_name = macro_file_path.stem
 
             # Ignore macros with uppercase letters or
             # spaces
-            uppercase = [letter for letter in
-                         macro_name if letter.isupper()]
-            if ' ' in macro_name or len(uppercase) != 0:
+            if ' ' in macro_name or not macro_name.islower():
                 continue
 
             # Ignore macros which already exist
