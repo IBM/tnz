@@ -48,7 +48,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - run: pip install --disable-pip-version-check -r requirements.txt
+    - run: pip install --disable-pip-version-check $(grep pytest requirements.txt)
     - uses: actions/download-artifact@v4
     - run: pip install $(ls dist/*.whl)
     - run: zti --version
