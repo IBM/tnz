@@ -16,5 +16,5 @@ jobs:
       with:
         python-version: 3.13
 
-    - run: pip install --disable-pip-version-check --upgrade -r requirements.txt
+    - run: pip install --disable-pip-version-check -r requirements.txt
     - run: mkdocs gh-deploy --force
