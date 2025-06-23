@@ -5,7 +5,7 @@ griffe==1.7.3
 mkdocs-material==9.6.14
 mkdocs-minify-plugin==0.8.0
 mkdocstrings-python==1.16.12
-pycodestyle==2.13.0
+pycodestyle==2.14.0
 pylint==3.3.7
 pytest==8.3.5; python_version>="3.8"
 pytest>=7.4.2; python_version<"3.8"
