@@ -58,6 +58,7 @@ import cmd
 import logging
 import os
 import platform
+import re
 import signal
 import sys
 import tempfile
@@ -3571,7 +3572,11 @@ def main():
             pass
 
     if args.host:
-        zti.cmdqueue.append(" ".join(("goto", args.host)))
+        hostname = args.host
+        mat = _hostportpat.fullmatch(hostname)
+        sesname = mat[1] if mat else hostname
+        sesname = sesname.split(".", maxsplit=1)[0]
+        zti.cmdqueue.append(f"goto {sesname} {hostname}")
         zti.single_session = True
 
     if args.rcfile is not None and ati.ati.session == ati.ati.sessions:
@@ -3604,5 +3609,6 @@ _WAIT_HOLDING = 7
 _WAIT_NOT_MORE = 8
 _WAIT_NOT_HOLDING = 9
 
-_osname = platform.system()
+_hostportpat = re.compile("([a-zA-Z0-9]+)(|:[0-9]+)")
 _logger = logging.getLogger("tnz.zti")
+_osname = platform.system()
