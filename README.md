@@ -29,7 +29,7 @@ stream. The ati module allows for easier 3270 terminal automation.
 
 ## Installing
 
-Python 3.6 or later is required.
+Python 3.9 or later is required.
 Although not required, on platforms other than z/OS, it is suggested
 you also install the [ebcdic](https://pypi.org/project/ebcdic)
 package from PyPI.

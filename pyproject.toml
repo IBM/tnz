@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "tnz"
 dynamic = ["version"]
 description = "Telnet-3270 to Z tool and library"
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 
 [[project.authors]]
 name = "Neil Johnson"

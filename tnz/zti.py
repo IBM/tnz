@@ -33,7 +33,7 @@ Environment variables used:
     ZTI_TITLE
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021, 2024 IBM Inc. All Rights Reserved.
+Copyright 2021, 2025 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -859,7 +859,6 @@ class Zti(cmd.Cmd):
         # appear as a 'documented command'. Need to refine this command.
 
         self.__shell_mode(init=True)
-        # curses.update_lines_cols() not in z/OS python3.6
         maxy, maxx = self.stdscr.getmaxyx()
 
         if arg:
@@ -1791,11 +1790,7 @@ HELP and HELP KEYS commands for more information.
         _logger.debug("end __display")
 
     def __install_plugins(self):
-        try:
-            from importlib.metadata import entry_points
-        except ImportError:  # must be Python <3.8
-            self.plugins = ""
-            return
+        from importlib.metadata import entry_points
 
         plugins = []
         eps = entry_points()
