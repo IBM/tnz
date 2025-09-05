@@ -13,7 +13,7 @@ Environment variables used:
     TNZ_LOGGING
     ZTI_SECLEVEL
 
-Copyright 2021, 2024 IBM Inc. All Rights Reserved.
+Copyright 2021, 2025 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -2148,11 +2148,6 @@ class Tnz:
             elif data[2] == 46:  # START_TLS
                 if os.environ.get("SESSION_SSL") == "NEVER":
                     self.__log_info("START_TLS SESSION_SSL=NEVER.")
-                    self.send_wont(data[2], buffer=True)
-
-                elif not hasattr(self.__loop, "start_tls"):
-                    self._log_warn("START_TLS unsupported.")
-                    self._log_warn("Python >= 3.7 required")
                     self.send_wont(data[2], buffer=True)
 
                 else:
