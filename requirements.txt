@@ -4,7 +4,7 @@ ebcdic==1.1.1; sys_platform!="zos"
 griffe==1.14.0
 mkdocs-material==9.6.18
 mkdocs-minify-plugin==0.8.0
-mkdocstrings-python==1.17.0
+mkdocstrings-python==1.18.2
 pycodestyle==2.14.0
 pylint==3.3.8
 pytest==8.4.2
