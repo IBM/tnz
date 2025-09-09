@@ -8,5 +8,5 @@ mkdocstrings-python==1.18.2
 pycodestyle==2.14.0
 pylint==3.3.8
 pytest==8.4.2
-twine==6.1.0; sys_platform!="zos"
+twine==6.2.0; sys_platform!="zos"
 wheel==0.45.1
