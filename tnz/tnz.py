@@ -1528,6 +1528,53 @@ class Tnz:
         strl.append("")
         return "\n".join(strl)
 
+    def selector_pen(self, address, zti=None):
+        if not self.is_pen_detectable(address):
+            return False
+
+        if self.pwait:
+            raise TnzError("PWAIT Input Inhibit")
+
+        if self.system_lock_wait:
+            raise TnzError("System Lock Input Inhibit")
+
+        if self.read_state == self.__ReadState.RENTER:
+            raise TnzError("Retry Enter State")
+
+        faddr, fattr = self.field(address)
+        saddr = (faddr + 1) % self.buffer_size
+        eaddr = (faddr + 2) % self.buffer_size
+        designator = self.scrstr(saddr, eaddr)
+        self._log_warn("designator: %r", designator)
+        if designator == "?":
+            self.set_cursor_address(saddr)
+            # TODO what if saddr (designator) is a field attribute?
+            self.key_data(">", zti=zti)
+
+        elif designator == ">":
+            self.set_cursor_address(saddr)
+            # TODO what if saddr (designator) is a field attribute?
+            self.key_data("?", zti=zti)
+            nattr = bit6(fattr & (255 ^ 1))  # turn off MDT
+            self.plane_fa[faddr] = nattr
+
+        elif designator in (" ", "\0", "&"):
+            self.inpid = 0  # Inbound Partition Identifier (INPID)
+            self.inop = 0x06  # (RM) INOP = Read Modified
+            self.system_lock_wait = True  # System Lock Condition
+            self.pwait = True  # Partition Wait Condition (PWAIT)
+            self.read_state = self.__ReadState.RENTER  # Retry Enter
+            self.set_cursor_address(address)
+            if designator == "&":
+                self.send_aid(0x7d)  # transmit data inbound
+            else:
+                self.send_aid(0x7e)  # transmit data inbound
+
+        else:
+            return False  # not a valid designator, no action
+
+        return True
+
     def send(self, data=None):
         """
         Send input byte array as data to the host. This method will
