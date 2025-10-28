@@ -679,10 +679,10 @@ class Ati():
         loop = self.__loop
         if not loop:
             try:
-              loop = asyncio.get_event_loop()
+                loop = asyncio.get_event_loop()
 
             except RuntimeError:  # >= Python 3.14 and no current loop
-              loop = asyncio.new_event_loop()
+                loop = asyncio.new_event_loop()
 
             self.__event = asyncio.Event()
             self.__loop = loop
