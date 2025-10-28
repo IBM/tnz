@@ -1529,50 +1529,32 @@ class Tnz:
         return "\n".join(strl)
 
     def selector_pen(self, address, zti=None):
-        if not self.is_pen_detectable(address):
+        faddr, fattr = self.field(address)
+        if faddr == address or not self.is_detectable_attr(fattr):
             return False
 
-        if self.pwait:
-            raise TnzError("PWAIT Input Inhibit")
-
-        if self.system_lock_wait:
-            raise TnzError("System Lock Input Inhibit")
-
-        if self.read_state == self.__ReadState.RENTER:
-            raise TnzError("Retry Enter State")
-
-        faddr, fattr = self.field(address)
         saddr = (faddr + 1) % self.buffer_size
         eaddr = (faddr + 2) % self.buffer_size
         designator = self.scrstr(saddr, eaddr)
-        self._log_warn("designator: %r", designator)
-        if designator == "?":
-            self.set_cursor_address(saddr)
-            # TODO what if saddr (designator) is a field attribute?
-            self.key_data(">", zti=zti)
+        if designator not in ("?", ">", " ", "\0", "&"):
+            return False
 
-        elif designator == ">":
-            self.set_cursor_address(saddr)
-            # TODO what if saddr (designator) is a field attribute?
-            self.key_data("?", zti=zti)
-            nattr = bit6(fattr & (255 ^ 1))  # turn off MDT
-            self.plane_fa[faddr] = nattr
+        if designator in ("?", ">"):  # if selection field
+            new_designator = "?" if designator == ">" else ">"
+            curadd = self.curadd  # save
+            self.curadd = saddr
+            updated = bool(self.key_data(new_designator, zti=zti))
+            self.curadd = curadd  # restore
+            if updated and designator == ">":
+                nattr = bit6(fattr & (255 ^ 1))  # turn off MDT
+                self.plane_fa[faddr] = nattr
 
-        elif designator in (" ", "\0", "&"):
-            self.inpid = 0  # Inbound Partition Identifier (INPID)
-            self.inop = 0x06  # (RM) INOP = Read Modified
-            self.system_lock_wait = True  # System Lock Condition
-            self.pwait = True  # Partition Wait Condition (PWAIT)
-            self.read_state = self.__ReadState.RENTER  # Retry Enter
-            self.set_cursor_address(address)
-            if designator == "&":
-                self.send_aid(0x7d)  # transmit data inbound
-            else:
-                self.send_aid(0x7e)  # transmit data inbound
+            return updated
 
-        else:
-            return False  # not a valid designator, no action
-
+        # process attention field
+        aid = 0x7d if designator == "&" else 0x7e  # ENTER or sel pen
+        self.curadd = address
+        self.key_aid(aid)
         return True
 
     def send(self, data=None):
@@ -1627,7 +1609,9 @@ class Tnz:
         gotcmd = False
         reply_mode = self.__reply_mode
         reply_cattrs = self.__reply_cattrs
-
+        selector_pen_no_data = (
+            aid == 0x7e and self.read_state == self.__ReadState.RENTER
+        )
         if self.inpid:
             raise TnzError(f"PID={self.inpid} not implemented")
 
@@ -1664,7 +1648,10 @@ class Tnz:
 
             blst = []
             append = blst.append
-            if reply_mode in (0x00, 0x01):  # [Extended] Field mode
+            if selector_pen_no_data:
+                pass
+
+            elif reply_mode in (0x00, 0x01):  # [Extended] Field mode
                 self.__append_char_bytes(blst, sa1, ea1)
 
             elif reply_mode == 2:  # Character mode
