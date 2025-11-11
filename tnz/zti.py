@@ -2595,7 +2595,10 @@ HELP and HELP KEYS commands for more information.
                         elif (mbstate &
                               curses.BUTTON1_CLICKED) != 0:
                             addr = (ypos * tns.maxcol) + xpos
-                            if tns.is_protected(addr):
+                            if tns.selector_pen(addr, zti=self):
+                                self.rewrite_cursor = True
+                                self.rewrite_keylock = True
+                            elif tns.is_protected(addr):
                                 wstr = tns.word_at(addr)
                                 if ((wstr.startswith("http://") or
                                      wstr.startswith("https://"))):
