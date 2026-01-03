@@ -1528,6 +1528,35 @@ class Tnz:
         strl.append("")
         return "\n".join(strl)
 
+    def selector_pen(self, address, zti=None):
+        faddr, fattr = self.field(address)
+        if faddr == address or not self.is_detectable_attr(fattr):
+            return False
+
+        saddr = (faddr + 1) % self.buffer_size
+        eaddr = (faddr + 2) % self.buffer_size
+        designator = self.scrstr(saddr, eaddr)
+        if designator not in ("?", ">", " ", "\0", "&"):
+            return False
+
+        if designator in ("?", ">"):  # if selection field
+            new_designator = "?" if designator == ">" else ">"
+            curadd = self.curadd  # save
+            self.curadd = saddr
+            updated = bool(self.key_data(new_designator, zti=zti))
+            self.curadd = curadd  # restore
+            if updated and designator == ">":
+                nattr = bit6(fattr & (255 ^ 1))  # turn off MDT
+                self.plane_fa[faddr] = nattr
+
+            return updated
+
+        # process attention field
+        aid = 0x7d if designator == "&" else 0x7e  # ENTER or sel pen
+        self.curadd = address
+        self.key_aid(aid)
+        return True
+
     def send(self, data=None):
         """
         Send input byte array as data to the host. This method will
@@ -1580,7 +1609,9 @@ class Tnz:
         gotcmd = False
         reply_mode = self.__reply_mode
         reply_cattrs = self.__reply_cattrs
-
+        selector_pen_no_data = (
+            aid == 0x7e and self.read_state == self.__ReadState.RENTER
+        )
         if self.inpid:
             raise TnzError(f"PID={self.inpid} not implemented")
 
@@ -1617,7 +1648,10 @@ class Tnz:
 
             blst = []
             append = blst.append
-            if reply_mode in (0x00, 0x01):  # [Extended] Field mode
+            if selector_pen_no_data:
+                pass
+
+            elif reply_mode in (0x00, 0x01):  # [Extended] Field mode
                 self.__append_char_bytes(blst, sa1, ea1)
 
             elif reply_mode == 2:  # Character mode
