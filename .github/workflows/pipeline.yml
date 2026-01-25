@@ -1,5 +1,8 @@
 name: CI/CD
 
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: 1
+
 on:
   push:
     branches: [ "main" ]
@@ -20,14 +23,15 @@ jobs:
       with:
         python-version: 3.13
 
-    - run: pip install --disable-pip-version-check -r requirements.txt
+    - run: pip install -r requirements.txt
     - run: pycodestyle tnz/*.py
-    - run: python -m build --wheel --outdir dist/
+    - run: pip wheel --no-deps --wheel-dir dist/ .
     - uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/
 
+    - run: python -mzipfile -l $(ls dist/*.whl)
     - run: mkdocs build
 
   test-wheel:
@@ -46,7 +50,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - run: pip install --disable-pip-version-check pytest -c requirements.txt
+    - run: pip install pytest -c requirements.txt
     - uses: actions/download-artifact@v4
     - run: pip install $(ls dist/*.whl)
     - run: zti --version
@@ -64,7 +68,7 @@ jobs:
         python-version: 3.13
 
     - run: git fetch --tags
-    - run: pip install --disable-pip-version-check -r requirements.txt
+    - run: pip install -r requirements.txt
     - uses: actions/download-artifact@v4
     - run: twine upload --non-interactive -u __token__ dist/*
       env:
