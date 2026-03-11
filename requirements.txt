@@ -1,4 +1,4 @@
-ebcdic==2.0.0; sys_platform!="zos"
+ebcdic==2.0.1; sys_platform!="zos"
 griffe==1.14.0
 mkdocs-material==9.7.4
 mkdocs-minify-plugin==0.8.0
