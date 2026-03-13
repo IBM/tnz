@@ -2657,7 +2657,6 @@ class Ati():
         lu_name = self["SESSION_LU_NAME"]  # __getitem__
         if lu_name:
             tns.lu_name = lu_name
-            tns.use_tn3270e = True
 
         device_type = self["SESSION_DEVICE_TYPE"]  # __getitem__
         if device_type:

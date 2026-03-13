@@ -1796,11 +1796,14 @@ class Tnz:
     def send_terminal_type(self, buffer=False):
         """Send the terminal type to the host.
         """
-        self.__log_info("o>> TERMINAL-TYPE IS %s",
-                        self.terminal_type)
+        terminal_type = self.terminal_type
+        if self.lu_name:
+            terminal_type = f"{terminal_type}@{self.lu_name}"
+
+        self.__log_info("o>> TERMINAL-TYPE IS %s", terminal_type)
         data = b"".join([b"\x18",  # TERMINAL-TYPE
                          b"\x00",  # IS
-                         self.terminal_type.encode("ascii")])
+                         terminal_type.encode("ascii")])
         return self.send_sub(data, buffer=buffer)
 
     def send_will(self, opt, buffer=False):
