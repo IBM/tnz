@@ -32,7 +32,7 @@ jobs:
         path: dist/
 
     - run: python -mzipfile -l $(ls dist/*.whl)
-    - run: mkdocs build
+    - run: zensical build
 
   test-wheel:
     needs: build-wheel
