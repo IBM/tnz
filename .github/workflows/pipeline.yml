@@ -66,4 +66,4 @@ jobs:
 
     steps:
     - uses: actions/download-artifact@v4
-    - uses: pypa/gh-action-pypi-publisher@release/v1
+    - uses: pypa/gh-action-pypi-publish@release/v1
