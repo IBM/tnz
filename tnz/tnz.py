@@ -13,7 +13,7 @@ Environment variables used:
     TNZ_LOGGING
     ZTI_SECLEVEL
 
-Copyright 2021, 2025 IBM Inc. All Rights Reserved.
+Copyright 2021, 2026 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -23,7 +23,6 @@ import enum
 import json
 import logging
 import os
-import platform
 import re
 import ssl
 import sys
@@ -1900,6 +1899,17 @@ class Tnz:
             rec += isf
             self.__log_debug("DDM Get Past End Of File send")
             self.__inds_rm = None
+
+        elif isinstance(data, tuple):  # type, exception, traceback
+            isf = b"\xd0\x46\x08"  # D04608 Get Error
+            isf += b"\x69\x04"  # Error Code Header
+            isf += b"\x22\x00"  # Error Code Get Past End of File
+            isf = (len(isf)+2).to_bytes(2, byteorder="big")+isf
+            rec += isf
+            self.__log_debug("DDM Get Exception: %r", data[1])
+            self.__inds_rm = None
+            self.__ddmerr = data[1]
+
         else:
             self.__log_debug("DDM Data for Get send")
             self.__log_debug("SF: %r", data)
@@ -2822,6 +2832,17 @@ class Tnz:
             rec += isf
             self.__log_debug("DDM Get Past End Of File send")
             self.__inds_rm = None
+
+        elif isinstance(data, tuple):  # type, exception, traceback
+            isf = b"\xd0\x46\x08"  # D04608 Get Error
+            isf += b"\x69\x04"  # Error Code Header
+            isf += b"\x22\x00"  # Error Code Get Past End of File
+            isf = (len(isf)+2).to_bytes(2, byteorder="big")+isf
+            rec += isf
+            self.__log_debug("DDM Get Exception: %r", data[1])
+            self.__inds_rm = None
+            self.__ddmerr = data[1]
+
         else:
             self.__log_debug("DDM Data for Get send")
             self.__log_debug("SF: %r", data)
@@ -4064,7 +4085,12 @@ class Tnz:
                 # translation often equates EBCDIC NL with
                 # unicode LF.
                 data = data.replace("\n", "\r")
-                data = data.encode(self.__indsenc)
+                try:
+                    data = data.encode(self.__indsenc)
+                except UnicodeEncodeError:
+                    self.__indsisf = sys.exc_info()
+                    return
+
                 data = data.replace(b"\r", b"\r\n")
 
                 self.__indspend += data
@@ -4091,6 +4117,7 @@ class Tnz:
         isf = (len(isf)+2).to_bytes(2, byteorder="big")+isf
 
         self.__indsisf = isf
+        return
 
     def __query_reply(self, reqtype=None, qcode=None):
         """Perform query reply.
