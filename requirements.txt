@@ -3,4 +3,4 @@ mkdocstrings-python==2.0.4
 pycodestyle==2.14.0
 pylint==4.0.5
 pytest==9.0.3
-zensical==0.0.43
+zensical==0.0.44
