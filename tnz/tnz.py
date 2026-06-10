@@ -2332,7 +2332,7 @@ class Tnz:
                             " REQUEST" +  # x07
                             " %s", self.__tn3270e_functions(data[5:]))
 
-            supported_fun = {2}  # RESPONSES
+            supported_fun = {0, 2, 4}  # BIND-IMAGE RESPONSES SYSREQ
             requested_fun = set(data[5:])
             common_fun = supported_fun & requested_fun
             funb = bytes(common_fun)
