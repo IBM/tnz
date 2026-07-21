@@ -25,6 +25,7 @@ Environment variables used:
     TERM_PROGRAM (see _termlib.py)
     TNZ_COLORS (see tnz.py)
     TNZ_LOGGING (see tnz.py)
+    TNZ_THEME (path to JSON file with custom color theme)
     ZTI_AIDBUFSIZE (9 is default)
     ZTI_AUTOSIZE
     ZTI_CURSOR_INSERT
@@ -2751,27 +2752,49 @@ HELP and HELP KEYS commands for more information.
         _logger.debug("colors = %d", colors)
         _logger.debug("color_pairs = %d", color_pairs)
 
-        # IBM PCOMM default colors:
-        #   name           r,     g,     b
-        #   black          0,     0,     0  000000
-        #   red          240,    24,    24  f01818
-        #   green         36,   216,    48  24d830
-        #   yellow       255,   255,     0  ffff00
-        #   blue         120,   144,   240  7890f0
-        #   pink         255,     0,   255  ff00ff
-        #   turquoise     88,   240,   240  58f0f0
-        #   white        255,   255,   255  ffffff
-        #
-        # Converting from 256 to 1000:
-        #   name           r,     g,     b
-        #   black          0,     0,     0
-        #   red          941,    94,    94
-        #   green        141,   847,   188
-        #   yellow      1000,  1000,     0
-        #   blue         471,   565,   941
-        #   pink        1000,     0,  1000
-        #   turquoise    345,   941,   941
-        #   white       1000,  1000,  1000
+        # Try to load custom theme from TNZ_THEME environment variable
+        theme = _util.load_theme()
+        
+        if theme:
+            # Use custom theme colors
+            black_rgb = theme['black']
+            red_rgb = theme['red']
+            green_rgb = theme['green']
+            yellow_rgb = theme['yellow']
+            blue_rgb = theme['blue']
+            pink_rgb = theme['magenta']
+            turquoise_rgb = theme['cyan']
+            white_rgb = theme['white']
+        else:
+            # IBM PCOMM default colors:
+            #   name           r,     g,     b
+            #   black          0,     0,     0  000000
+            #   red          240,    24,    24  f01818
+            #   green         36,   216,    48  24d830
+            #   yellow       255,   255,     0  ffff00
+            #   blue         120,   144,   240  7890f0
+            #   pink         255,     0,   255  ff00ff
+            #   turquoise     88,   240,   240  58f0f0
+            #   white        255,   255,   255  ffffff
+            #
+            # Converting from 256 to 1000:
+            #   name           r,     g,     b
+            #   black          0,     0,     0
+            #   red          941,    94,    94
+            #   green        141,   847,   188
+            #   yellow      1000,  1000,     0
+            #   blue         471,   565,   941
+            #   pink        1000,     0,  1000
+            #   turquoise    345,   941,   941
+            #   white       1000,  1000,  1000
+            black_rgb = (0, 0, 0)
+            red_rgb = (941, 94, 94)
+            green_rgb = (141, 847, 188)
+            yellow_rgb = (1000, 1000, 0)
+            blue_rgb = (471, 565, 941)
+            pink_rgb = (1000, 0, 1000)
+            turquoise_rgb = (345, 941, 941)
+            white_rgb = (1000, 1000, 1000)
         #
         # curses defines the following:
         #   COLOR_BLACK
@@ -2808,15 +2831,6 @@ HELP and HELP KEYS commands for more information.
         # ** Using ROUND function
 
         if colors >= 264:
-            black_rgb = (0, 0, 0)
-            red_rgb = (941, 94, 94)
-            green_rgb = (141, 847, 188)
-            yellow_rgb = (1000, 1000, 0)
-            blue_rgb = (471, 565, 941)
-            pink_rgb = (1000, 0, 1000)
-            turquoise_rgb = (345, 941, 941)
-            white_rgb = (1000, 1000, 1000)
-
             color_start = 256
             curses.init_color(color_start, *black_rgb)
             curses.init_color(color_start + 1, *blue_rgb)
