@@ -433,7 +433,9 @@ class Ati():
 
                 self.__logresult("%s = %r", unam, unam)
 
-    def extract(self, *args: str | int | tuple[int, int], wc: str | None = None) -> str | int | None:
+    def extract(
+            self, *args: str | int | tuple[int, int],
+            wc: str | None = None) -> str | int | None:
         """Return a text string from the host screen.
 
         Usage/Syntax:
@@ -763,7 +765,10 @@ class Ati():
 
         return new_ati
 
-    def numvalue(self, name: str, trace: str | None = None) -> int:  # numvalue:
+    # numvalue:
+    def numvalue(
+            self, name: str, trace: str | None = None
+    ) -> int:
         """Shorthand for num(value(varname))
         """
         return self.num(self.value(name, trace=trace))
@@ -823,7 +828,9 @@ class Ati():
     def scrcomp(self, value):
         raise AtiError("not implemented")
 
-    def scrhas(self, *args: str | int | tuple[int, int], wc: str | None = None) -> bool:
+    def scrhas(
+            self, *args: str | int | tuple[int, int],
+            wc: str | None = None) -> bool:
         """Check current screen for a string.
 
         Return True if the specified character string exists on
@@ -1640,7 +1647,9 @@ class Ati():
         self.set("RC", ati_rc, xtern=False)
         return ati_rc
 
-    def set(self, name, value, xtern=True, trace=None, verifycert=None) -> int | None:
+    def set(
+            self, name, value, xtern=True, trace=None,
+            verifycert=None) -> int | None:
         """Set an ATI-like variable.
         """
         rval = None
@@ -2018,7 +2027,9 @@ class Ati():
         self.set("RC", "1", xtern=False)
         return 1
 
-    def when(self, *args: str | Callable[..., Any]) -> Callable[..., Any] | None:
+    def when(
+            self, *args: str | Callable[..., Any]
+    ) -> Callable[..., Any] | None:
         """ATI WHEN statement function.
 
         Usage/Syntax:
@@ -3650,7 +3661,10 @@ def drop(*args: str) -> None:  # DROP: statement
 drop.__doc__ = Ati.drop.__doc__
 
 
-def extract(*args: str | int | tuple[int, int], wc: str | None = None) -> str | int | None:  # EXTRACT: statement
+def extract(
+        *args: str | int | tuple[int, int],
+        wc: str | None = None
+) -> str | int | None:  # EXTRACT: statement
     return ati.extract(*args, wc=wc)
 
 
@@ -3671,7 +3685,9 @@ def logwrt(value: str) -> None:
 logwrt.__doc__ = Ati.logwrt.__doc__
 
 
-def numvalue(name: str, trace: str | None = None) -> int:  # numvalue: -- remove?
+def numvalue(
+        name: str, trace: str | None = None
+) -> int:  # numvalue: -- remove?
     return ati.numvalue(name, trace=trace)
 
 
@@ -3699,7 +3715,9 @@ def scrcomp(value):
 scrcomp.__doc__ = Ati.scrcomp.__doc__
 
 
-def scrhas(*args: str | int | tuple[int, int], wc: str | None = None) -> bool:
+def scrhas(
+        *args: str | int | tuple[int, int],
+        wc: str | None = None) -> bool:
     return ati.scrhas(*args, wc=wc)
 
 
@@ -3713,7 +3731,9 @@ def send(*args: str | tuple[int, int]) -> int:
 send.__doc__ = Ati.send.__doc__
 
 
-def set(name: str, value: str, xtern: bool = True, trace: str | None = None) -> int | None:
+def set(
+        name: str, value: str, xtern: bool = True,
+        trace: str | None = None) -> int | None:
     return ati.set(name, value, xtern=xtern, trace=trace)
 
 
