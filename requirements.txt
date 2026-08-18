@@ -1,6 +1,6 @@
 ebcdic==2.0.1; sys_platform!="zos"
 mkdocstrings-python==2.0.5
 pycodestyle==2.14.0
-pylint==4.0.6
+pylint==4.0.7
 pytest==9.1.1
 zensical==0.0.54
