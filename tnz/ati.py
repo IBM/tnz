@@ -94,6 +94,9 @@ SPDX-License-Identifier: Apache-2.0
 """
 import asyncio
 import atexit
+from collections.abc import Callable
+from typing import Any
+
 import functools
 import inspect
 import logging
@@ -230,7 +233,7 @@ class Ati():
 
     # dunder methods
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         """Use to process another program.
 
         Example:
@@ -241,7 +244,7 @@ class Ati():
         self.__ati_stack.append(ati)
         ati = self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         global ati
         ati = self.__ati_stack.pop()
 
@@ -366,7 +369,7 @@ class Ati():
 
     # public methods
 
-    def drop(self, *args):
+    def drop(self, *args: str) -> None:
         """Delete user-defined variable(s).
 
         Drops one or more user-defined variable(s) or host sessions
@@ -430,7 +433,9 @@ class Ati():
 
                 self.__logresult("%s = %r", unam, unam)
 
-    def extract(self, *args, wc=None):
+    def extract(
+            self, *args: str | int | tuple[int, int],
+            wc: str | None = None) -> str | int | None:
         """Return a text string from the host screen.
 
         Usage/Syntax:
@@ -707,7 +712,7 @@ class Ati():
         """
         return self.__uv.keys() | self.__ikeys
 
-    def logwrt(self, value):
+    def logwrt(self, value: str) -> None:
         """Writes the input string to the current log destination.
         """
         self.__logcode("logwrt(%s)", self.__snip(value))
@@ -760,7 +765,10 @@ class Ati():
 
         return new_ati
 
-    def numvalue(self, name, trace=None):  # numvalue:
+    # numvalue:
+    def numvalue(
+            self, name: str, trace: str | None = None
+    ) -> int:
         """Shorthand for num(value(varname))
         """
         return self.num(self.value(name, trace=trace))
@@ -800,7 +808,7 @@ class Ati():
 
         self.__logresult("SESSION = %r", unam)
 
-    def say(self, value):
+    def say(self, value: str) -> None:
         """Print the input string.
 
         Write input string to standard output (likely the
@@ -820,7 +828,9 @@ class Ati():
     def scrcomp(self, value):
         raise AtiError("not implemented")
 
-    def scrhas(self, *args, wc=None):
+    def scrhas(
+            self, *args: str | int | tuple[int, int],
+            wc: str | None = None) -> bool:
         """Check current screen for a string.
 
         Return True if the specified character string exists on
@@ -1083,7 +1093,7 @@ class Ati():
         self.set("RC", "0", xtern=False)
         return True
 
-    def send(self, *args):
+    def send(self, *args: str | tuple[int, int]) -> int:
         """Send string to the active session.
 
         Send a string of characters and/or special keys to the
@@ -1637,7 +1647,9 @@ class Ati():
         self.set("RC", ati_rc, xtern=False)
         return ati_rc
 
-    def set(self, name, value, xtern=True, trace=None, verifycert=None):
+    def set(
+            self, name, value, xtern=True, trace=None,
+            verifycert=None) -> int | None:
         """Set an ATI-like variable.
         """
         rval = None
@@ -1785,7 +1797,7 @@ class Ati():
 
         return rval
 
-    def share(self, *args):
+    def share(self, *args: str) -> None:
         """Perform the ATI GLOBAL statement function
         """
         self.__logcode("share%s", args)
@@ -1806,7 +1818,7 @@ class Ati():
 
             self.__uv[unam] = Ati.__GLOBAL
 
-    def value(self, name, trace=None):
+    def value(self, name: str, trace: str | None = None) -> str | None:
         """returns the contents of the ATI variable
            for the input name
         """
@@ -1831,7 +1843,7 @@ class Ati():
 
         return rval
 
-    def wait(self, *args):
+    def wait(self, *args: int | str | bool | Callable[[], bool]) -> int:
         """Wait for either a specific time limit or for a specified
         wait condition to be satisfied.
 
@@ -2015,7 +2027,9 @@ class Ati():
         self.set("RC", "1", xtern=False)
         return 1
 
-    def when(self, *args):
+    def when(
+            self, *args: str | Callable[..., Any]
+    ) -> Callable[..., Any] | None:
         """ATI WHEN statement function.
 
         Usage/Syntax:
@@ -2711,7 +2725,7 @@ class Ati():
         return text.replace("[", "[[")
 
     @staticmethod
-    def num(value):
+    def num(value) -> int:
         """Use ATI rules to convert the input string to an integer.
         """
         if isinstance(value, int):
@@ -2794,21 +2808,21 @@ class Ati():
     # Readonly properties
 
     @property
-    def curcol(self):
+    def curcol(self) -> int:
         """Cursor column value for current session.
         """
         self.__refresh_vars()
         return self.__gv["CURCOL"]
 
     @property
-    def currow(self):
+    def currow(self) -> int:
         """Cursor row value for current session.
         """
         self.__refresh_vars()
         return self.__gv["CURROW"]
 
     @property
-    def date(self):
+    def date(self) -> str:
         """Current Date
 
         Contains the current date in the form mm/dd/yy. To get the
@@ -2821,7 +2835,7 @@ class Ati():
         return time.strftime("%y/%m/%d")
 
     @property
-    def datetime(self):
+    def datetime(self) -> str:
         """Current Date/Time
 
         Contains the current date and time in the form `yy/mm/dd
@@ -2834,7 +2848,7 @@ class Ati():
         return time.strftime("%y/%m/%d %H:%M:%S")
 
     @property
-    def hitcol(self):
+    def hitcol(self) -> int:
         """The column position of the first character of the string
         found by SCRHAS or the start column position of an
         EXTRACT.
@@ -2842,14 +2856,14 @@ class Ati():
         return self.__gv["HITCOL"]
 
     @property
-    def hitrow(self):
+    def hitrow(self) -> int:
         """The row position of the first character of the string
         found by SCRHAS or the start row position of an EXTRACT.
         """
         return self.__gv["HITROW"]
 
     @property
-    def hitstr(self):
+    def hitstr(self) -> str:
         """String found
 
         The string that was found by the scrhas function.
@@ -2857,7 +2871,7 @@ class Ati():
         return self.__gv["HITSTR"]
 
     @property
-    def keylock(self):
+    def keylock(self) -> str:
         """Keyboard status
 
         Contains the keyboard status of the active session. Set to
@@ -2868,21 +2882,21 @@ class Ati():
         return self.__gv["KEYLOCK"]
 
     @property
-    def maxcol(self):
+    def maxcol(self) -> int:
         """Maximum column value for current session.
         """
         self.__refresh_vars()
         return self.__gv["MAXCOL"]
 
     @property
-    def maxrow(self):
+    def maxrow(self) -> int:
         """Maximum row value for current session.
         """
         self.__refresh_vars()
         return self.__gv["MAXROW"]
 
     @property
-    def milliage(self):
+    def milliage(self) -> int:
         """Program age in milliseconds
 
         Contains the number of milliseconds that have elapsed since
@@ -2894,7 +2908,7 @@ class Ati():
         return int(milliage)
 
     @property
-    def sendstr(self):
+    def sendstr(self) -> str:
         """Sent string
 
         Contains the last string that was passed to the host session.
@@ -2902,7 +2916,7 @@ class Ati():
         return self.__gv["SENDSTR"]
 
     @property
-    def seslost(self):
+    def seslost(self) -> str:
         """Lost session identifier
 
         Contains the name of the session that was abnormally lost.
@@ -2920,7 +2934,7 @@ class Ati():
         return self.__gv["SESLOST"]
 
     @property
-    def sessions(self):
+    def sessions(self) -> str:
         """Available sessions
 
         A space-separated list of names of active sessions.
@@ -2928,7 +2942,7 @@ class Ati():
         return " ".join(self.__session_tnz)
 
     @property
-    def time(self):
+    def time(self) -> str:
         """Current Time
 
         Contains the current time in the form `hh:mm:ss`.
@@ -2938,7 +2952,7 @@ class Ati():
     # Data descriptors
 
     @property
-    def age(self):
+    def age(self) -> int:
         """Program Age in Seconds
 
         If unchanged by the program, contains the number of seconds
@@ -2955,25 +2969,25 @@ class Ati():
         return int(tval)
 
     @age.setter
-    def age(self, value):
+    def age(self, value: int | str) -> None:
         age = self.num(value)
         tval = time.time()
         tval -= age
         self.__gv["age"] = tval
 
     @property
-    def audit(self):
+    def audit(self) -> bool:
         """Set to 1 to enable audit tracing. Like TRACE='HOST', but
         screens are only traced when an AID is sent.
         """
         return self.__gv["AUDIT"]
 
     @audit.setter
-    def audit(self, value):
+    def audit(self, value: int | str | bool) -> None:
         self.__gv["AUDIT"] = bool(self.num(value))
 
     @property
-    def display(self):
+    def display(self) -> str:
         """Display Controls
 
         Determines how much host or Ati activity is displayed during
@@ -3016,7 +3030,7 @@ class Ati():
         return self.__gv["DISPLAY"]
 
     @display.setter
-    def display(self, value):
+    def display(self, value: str) -> None:
         global ati
         valstr = str(value).upper().strip()
         if self.connected:
@@ -3038,7 +3052,7 @@ class Ati():
         self.__gv["DISPLAY"] = valstr
 
     @property
-    def keyunlock(self):
+    def keyunlock(self) -> int:
         """Keyboard Unlock Wait Time
 
         The number of seconds that a send will wait for the keyboard to
@@ -3057,11 +3071,11 @@ class Ati():
         return self.__gv["KEYUNLOCK"]
 
     @keyunlock.setter
-    def keyunlock(self, value):
+    def keyunlock(self, value: int | str) -> None:
         self.__gv["KEYUNLOCK"] = max(1, self.num(value))
 
     @property
-    def logcount(self):
+    def logcount(self) -> int:
         """Number of logs being managed.
 
         Default is 9. Can be set to other positive integers. Used
@@ -3076,11 +3090,11 @@ class Ati():
         return self.__gv["LOGCOUNT"]
 
     @logcount.setter
-    def logcount(self, value):
+    def logcount(self, value: int | str) -> None:
         self.__gv["LOGCOUNT"] = self.num(value)
 
     @property
-    def logdest(self):
+    def logdest(self) -> str:
         """Log Destination/File
 
         The name of the file where the history is recorded.
@@ -3099,7 +3113,7 @@ class Ati():
         return self.__gv["LOGDEST"]
 
     @logdest.setter
-    def logdest(self, value):
+    def logdest(self, value: str) -> None:
         valstr = str(value)
         uval = valstr.upper().strip()
 
@@ -3149,7 +3163,7 @@ class Ati():
             logger.propagate = False
 
     @property
-    def logmax(self):
+    def logmax(self) -> int:
         """Maximum size of log file
 
         Default is 0. Can be set to a positive integer. When
@@ -3161,11 +3175,11 @@ class Ati():
         return self.__gv["LOGMAX"]
 
     @logmax.setter
-    def logmax(self, value):
+    def logmax(self, value: int | str) -> None:
         self.__gv["LOGMAX"] = self.num(value)
 
     @property
-    def logtrunc(self):
+    def logtrunc(self) -> bool:
         """Determine if existing log data is truncated (deleted)
 
         Default is 1. Can be set to 0 or 1. Affects processing done
@@ -3178,11 +3192,11 @@ class Ati():
         return self.__gv["LOGTRUNC"]
 
     @logtrunc.setter
-    def logtrunc(self, value):
+    def logtrunc(self, value: int | str | bool) -> None:
         self.__gv["LOGTRUNC"] = bool(self.num(value))
 
     @property
-    def maxlostwarn(self):
+    def maxlostwarn(self) -> int:
         """Maximum Lost Session Warnings
 
         Specifies the default maximum number of Lost Session warnings
@@ -3202,11 +3216,11 @@ class Ati():
         return self.__gv["MAXLOSTWARN"]
 
     @maxlostwarn.setter
-    def maxlostwarn(self, value):
+    def maxlostwarn(self, value: int | str) -> None:
         self.__gv["MAXLOSTWARN"] = self.num(value)
 
     @property
-    def onerror(self):
+    def onerror(self) -> bool:
         """Control error handler
 
         Turns the error handler on or off.
@@ -3214,11 +3228,11 @@ class Ati():
         return self.__gv["ONERROR"]
 
     @onerror.setter
-    def onerror(self, value):
+    def onerror(self, value: int | str | bool) -> None:
         self.__gv["ONERROR"] = bool(self.num(value))
 
     @property
-    def rc(self):
+    def rc(self) -> int | str:
         """Return Code
 
         The return code from the last function that caused a return
@@ -3227,7 +3241,7 @@ class Ati():
         return self.__gv["RC"]
 
     @rc.setter
-    def rc(self, value):
+    def rc(self, value: int | str) -> None:
         if value is None:
             raise ValueError("None not allowed")
 
@@ -3237,7 +3251,7 @@ class Ati():
             self.__gv["RC"] = str(value)
 
     @property
-    def scrdelay(self):
+    def scrdelay(self) -> int:
         """Screen Save Delay
 
         Not implemented.
@@ -3245,11 +3259,11 @@ class Ati():
         return self.__gv["SCRDELAY"]
 
     @scrdelay.setter
-    def scrdelay(self, value):
+    def scrdelay(self, value: int | str) -> None:
         self.__gv["SCRDELAY"] = max(0, self.num(value))
 
     @property
-    def scrlibs(self):
+    def scrlibs(self) -> str:
         """Screen Library Search List
 
         Not implemented
@@ -3257,11 +3271,11 @@ class Ati():
         return self.__gv["SCRLIBS"]
 
     @scrlibs.setter
-    def scrlibs(self, value):
+    def scrlibs(self, value: str) -> None:
         raise AtiError('not implemented')
 
     @property
-    def scrupdate(self):
+    def scrupdate(self) -> int:
         """Screen Comparison/Save Control
 
         Not implemented.
@@ -3269,11 +3283,11 @@ class Ati():
         return self.__gv["SCRUPDATE"]
 
     @scrupdate.setter
-    def scrupdate(self, value):
+    def scrupdate(self, value: int | str) -> None:
         self.__gv["SCRUPDATE"] = self.num(value)
 
     @property
-    def session(self):
+    def session(self) -> str:
         """Current/Active Session
 
         Establish/determine the session for host interaction.
@@ -3308,11 +3322,11 @@ class Ati():
         return self.__gv["SESSION"]
 
     @session.setter
-    def session(self, value):
+    def session(self, value: str) -> None:
         self.__set_session(value, verifycert=None, lognew=True)
 
     @property
-    def session24(self):
+    def session24(self) -> bool:
         """Limit Session Terminal Type
 
         Limits new sessions to 24x80 with no extended attributes.
@@ -3329,11 +3343,11 @@ class Ati():
         return self.__gv["SESSION24"]
 
     @session24.setter
-    def session24(self, value):
+    def session24(self, value: int | str | bool) -> None:
         self.__gv["SESSION24"] = bool(self.num(value))
 
     @property
-    def sessionid(self):
+    def sessionid(self) -> int:
         """Control Session Name Display
 
         Not implemented
@@ -3341,11 +3355,11 @@ class Ati():
         return self.__gv["SESSIONID"]
 
     @sessionid.setter
-    def sessionid(self, value):
+    def sessionid(self, value: int | str) -> None:
         self.__gv["SESSIONID"] = self.num(value)
 
     @property
-    def showtype(self):
+    def showtype(self) -> bool:
         """Controls Send To Screen
 
         Setting to 1 (TRUE) causes the send data to be displayed on
@@ -3375,11 +3389,11 @@ class Ati():
         return self.__gv["SHOWTYPE"]
 
     @showtype.setter
-    def showtype(self, value):
+    def showtype(self, value: int | str | bool) -> None:
         self.__gv["SHOWTYPE"] = bool(self.num(value))
 
     @property
-    def trace(self):
+    def trace(self) -> str:
         """Control Tracking/Logging
 
         Specifies the type of information that is written to the log
@@ -3424,7 +3438,7 @@ class Ati():
         return self.__gv["TRACE"]
 
     @trace.setter
-    def trace(self, value):
+    def trace(self, value: str) -> None:
         self.__log_check()
         uval = str(value).upper().strip()
 
@@ -3477,7 +3491,7 @@ class Ati():
             self.__gv["TRACE"] = uval
 
     @property
-    def waitsleep(self):
+    def waitsleep(self) -> int | float:
         """Check interval for wait/when
 
         Sets the time interval (in seconds) that the wait function
@@ -3501,7 +3515,7 @@ class Ati():
         return self.__gv["WAITSLEEP"]
 
     @waitsleep.setter
-    def waitsleep(self, value):
+    def waitsleep(self, value: int | str) -> None:
         self.__gv["WAITSLEEP"] = max(min(self.num(value), 99), 1)
 
     # write-only data
@@ -3640,35 +3654,40 @@ ati = Ati()  # initial/default instance
 # functions using singleton Ati instance
 
 
-def drop(*args):  # DROP: statement
+def drop(*args: str) -> None:  # DROP: statement
     return ati.drop(*args)
 
 
 drop.__doc__ = Ati.drop.__doc__
 
 
-def extract(*args, wc=None):  # EXTRACT: statement
+def extract(
+        *args: str | int | tuple[int, int],
+        wc: str | None = None
+) -> str | int | None:  # EXTRACT: statement
     return ati.extract(*args, wc=wc)
 
 
 extract.__doc__ = Ati.extract.__doc__
 
 
-def share(*args):
+def share(*args: str) -> None:
     return ati.share(*args)
 
 
 share.__doc__ = Ati.share.__doc__
 
 
-def logwrt(value):
+def logwrt(value: str) -> None:
     return ati.logwrt(value)
 
 
 logwrt.__doc__ = Ati.logwrt.__doc__
 
 
-def numvalue(name, trace=None):  # numvalue: -- remove?
+def numvalue(
+        name: str, trace: str | None = None
+) -> int:  # numvalue: -- remove?
     return ati.numvalue(name, trace=trace)
 
 
@@ -3682,7 +3701,7 @@ def rename(name):  # rename: -- remove?
 rename.__doc__ = Ati.rename.__doc__
 
 
-def say(value):
+def say(value: str) -> None:
     return ati.say(value)
 
 
@@ -3696,42 +3715,46 @@ def scrcomp(value):
 scrcomp.__doc__ = Ati.scrcomp.__doc__
 
 
-def scrhas(*args, wc=None):
+def scrhas(
+        *args: str | int | tuple[int, int],
+        wc: str | None = None) -> bool:
     return ati.scrhas(*args, wc=wc)
 
 
 scrhas.__doc__ = Ati.scrhas.__doc__
 
 
-def send(*args):
+def send(*args: str | tuple[int, int]) -> int:
     return ati.send(*args)
 
 
 send.__doc__ = Ati.send.__doc__
 
 
-def set(name, value, xtern=True, trace=None):
+def set(
+        name: str, value: str, xtern: bool = True,
+        trace: str | None = None) -> int | None:
     return ati.set(name, value, xtern=xtern, trace=trace)
 
 
 set.__doc__ = Ati.set.__doc__
 
 
-def value(name, trace=None):
+def value(name: str, trace: str | None = None) -> str | None:
     return ati.value(name, trace=trace)
 
 
 value.__doc__ = Ati.value.__doc__
 
 
-def wait(*args):
+def wait(*args: int | str | bool | Callable[[], bool]) -> int:
     return ati.wait(*args)
 
 
 wait.__doc__ = Ati.wait.__doc__
 
 
-def when(*args):
+def when(*args: str | Callable[..., Any]) -> Callable[..., Any] | None:
     return ati.when(*args)
 
 
