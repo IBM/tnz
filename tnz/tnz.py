@@ -703,13 +703,17 @@ class Tnz:
         return self.__ddmmsg
 
     def getpeername(self):
-        """Return remote address to which socket is connected.
+        """Return remote address (host, port) to which socket is connected.
         """
         transport = self._transport
         if not transport:
             return "?", "?"
 
-        return transport.get_extra_info("peername")
+        peername = transport.get_extra_info("peername")
+        if not peername:
+            return "?", "?"
+
+        return peername[0], peername[1]
 
     def getsockettype(self):
         """Return type of socket.
