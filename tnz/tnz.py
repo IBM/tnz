@@ -703,7 +703,9 @@ class Tnz:
         return self.__ddmmsg
 
     def getpeername(self):
-        """Return remote address (host, port) to which socket is connected.
+        """Return remote address to which socket is connected.
+
+        Always a (host, port) pair, including for AF_INET6.
         """
         transport = self._transport
         if not transport:
