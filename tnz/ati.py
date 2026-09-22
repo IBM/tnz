@@ -796,6 +796,7 @@ class Ati():
         self.__session_tnz[unam] = tns
         self.__gv["SESSION"] = unam
         del self.__session_tnz[session]
+        tns.name = unam
 
         self.__logresult("SESSION = %r", unam)
 
