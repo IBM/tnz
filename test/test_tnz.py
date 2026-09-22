@@ -300,3 +300,36 @@ def test_conv():
     assert(0x3d==0x7d&0x3f)
     assert(0x3e==0x7e&0x3f)
     assert(0x3f==0x7f&0x3f)
+
+
+class _FakeTransport:
+    def __init__(self, peername):
+        self._peername = peername
+
+    def get_extra_info(self, name, default=None):
+        if name == "peername":
+            return self._peername
+        return default
+
+
+def test_getpeername_ipv4():
+    z = tnz.Tnz()
+    z._transport = _FakeTransport(("127.0.0.1", 23))
+    assert z.getpeername() == ("127.0.0.1", 23)
+
+
+def test_getpeername_ipv6():
+    # asyncio AF_INET6 peername includes flowinfo and scope_id
+    z = tnz.Tnz()
+    z._transport = _FakeTransport(("::1", 23, 0, 0))
+    assert z.getpeername() == ("::1", 23)
+    pnaddr, pnport = z.getpeername()
+    assert pnaddr == "::1"
+    assert pnport == 23
+
+
+def test_getpeername_missing():
+    z = tnz.Tnz()
+    assert z.getpeername() == ("?", "?")
+    z._transport = _FakeTransport(None)
+    assert z.getpeername() == ("?", "?")
