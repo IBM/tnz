@@ -2277,6 +2277,7 @@ class Tnz:
             self.send_sub(rsp)
 
         elif data[:6] == b"\xff\xfa\x28\x02\x06\x05":  # IAC SB ...
+            reason_code = data[6] if len(data) > 6 else None
             reason = {
                 0: "CONN-PARTNER",
                 1: "DEVICE-IN-USE",
@@ -2286,7 +2287,7 @@ class Tnz:
                 5: "TYPE-NAME-ERROR",
                 6: "UNKNOWN-ERROR",
                 7: "UNSUPPORTED-REQ",
-            }.get(data[6], str(data[6]))
+            }.get(reason_code, str(reason_code))
             self.__log_error("i<<" +
                              " TN3270E" +  # x28
                              " DEVICE-TYPE" +  # x02
@@ -2338,17 +2339,17 @@ class Tnz:
                             " REQUEST" +  # x07
                             " %s", self.__tn3270e_functions(data[5:]))
 
-            supported_fun = {0, 2, 4}  # BIND-IMAGE RESPONSES SYSREQ
+            supported_fun = {2}  # RESPONSES
             requested_fun = set(data[5:])
             common_fun = supported_fun & requested_fun
-            funb = bytes(common_fun)
+            funb = bytes(sorted(common_fun))
             if requested_fun == common_fun:
                 self.__log_info("o>>" +
                                 " TN3270E" +  # x28
                                 " FUNCTIONS" +  # x03
                                 " IS" +  # x04
                                 " %s", self.__tn3270e_functions(funb))
-                self.send_sub(b"\x28\x03\x04{funb}")  # ... IS ...
+                self.send_sub(b"\x28\x03\x04" + funb)  # ... IS ...
 
             else:  # else not all requested functions supported
                 self.__log_info("o>>" +
@@ -2356,7 +2357,7 @@ class Tnz:
                                 " FUNCTIONS" +  # x03
                                 " REQUEST" +  # x07
                                 " %s", self.__tn3270e_functions(funb))
-                self.send_sub(b"\x28\x03\x07{funb}")  # ... REQUEST ...
+                self.send_sub(b"\x28\x03\x07" + funb)  # ... REQUEST ...
 
         elif data == b"\xff\xfa\x18\x01":  # IAC SB TERMINAL-TYPE SEND
             self.__log_info("i<< TERMINAL-TYPE SEND")
