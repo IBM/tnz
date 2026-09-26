@@ -2276,6 +2276,26 @@ class Tnz:
 
             self.send_sub(rsp)
 
+        elif data[:6] == b"\xff\xfa\x28\x02\x06\x05":  # IAC SB ...
+            reason_code = data[6] if len(data) > 6 else None
+            reason = {
+                0: "CONN-PARTNER",
+                1: "DEVICE-IN-USE",
+                2: "INV-ASSOCIATE",
+                3: "INV-DEVICE-NAME",
+                4: "INV-DEVICE-TYPE",
+                5: "TYPE-NAME-ERROR",
+                6: "UNKNOWN-ERROR",
+                7: "UNSUPPORTED-REQ",
+            }.get(reason_code, str(reason_code))
+            self.__log_error("i<<" +
+                             " TN3270E" +  # x28
+                             " DEVICE-TYPE" +  # x02
+                             " REJECT" +  # x06
+                             " REASON" +  # x05
+                             " %s", reason)
+            raise TnzError("DEVICE-TYPE request denied")
+
         elif data[:5] == b"\xff\xfa\x28\x02\x04":  # IAC SB ...
             i = data.find(b"\x01")  # find CONNECT
             if i < 0:
@@ -2292,28 +2312,12 @@ class Tnz:
                             " IS %s%s",  # x04
                             device_type, device_name)
 
-            funb = b""
-            funb = b"\x02"
-            funl = []
-            for fun in funb:
-                if fun == 0:
-                    funl.append("BIND-IMAGE")
-                elif fun == 1:
-                    funl.append("DATA-STREAM-CTL")
-                elif fun == 2:
-                    funl.append("RESPONSES")
-                elif fun == 3:
-                    funl.append("SCS-CTL-CODES")
-                elif fun == 4:
-                    funl.append("SYSREQ")
-                else:
-                    funl.append(repr(fun))
-
+            funb = b"\x02"  # RESPONSES
             self.__log_info("o>>" +
                             " TN3270E" +  # x28
                             " FUNCTIONS" +  # x03
-                            " REQUEST %r",  # x07
-                            funl)
+                            " REQUEST" +  # x07
+                            " %s", self.__tn3270e_functions(funb))
             self.send_sub(b"\x28\x03\x07"+funb)
 
             self._binary_local = True
@@ -2322,26 +2326,38 @@ class Tnz:
             self.__tn3270e = True
 
         elif data[:5] == b"\xff\xfa\x28\x03\x04":  # IAC SB ...
-            funl = []
-            for fun in data[5:]:
-                if fun == 0:
-                    funl.append("BIND-IMAGE")
-                elif fun == 1:
-                    funl.append("DATA-STREAM-CTL")
-                elif fun == 2:
-                    funl.append("RESPONSES")
-                elif fun == 3:
-                    funl.append("SCS-CTL-CODES")
-                elif fun == 4:
-                    funl.append("SYSREQ")
-                else:
-                    funl.append(repr(fun))
-
             self.__log_info("i<<" +
                             " TN3270E" +  # x28
                             " FUNCTIONS" +  # x03
-                            " IS %r",  # x04
-                            funl)
+                            " IS" +  # x04
+                            " %s", self.__tn3270e_functions(data[5:]))
+
+        elif data[:5] == b"\xff\xfa\x28\x03\x07":  # IAC SB ...
+            self.__log_info("i<<" +
+                            " TN3270E" +  # x28
+                            " FUNCTIONS" +  # x03
+                            " REQUEST" +  # x07
+                            " %s", self.__tn3270e_functions(data[5:]))
+
+            supported_fun = {2}  # RESPONSES
+            requested_fun = set(data[5:])
+            common_fun = supported_fun & requested_fun
+            funb = bytes(sorted(common_fun))
+            if requested_fun == common_fun:
+                self.__log_info("o>>" +
+                                " TN3270E" +  # x28
+                                " FUNCTIONS" +  # x03
+                                " IS" +  # x04
+                                " %s", self.__tn3270e_functions(funb))
+                self.send_sub(b"\x28\x03\x04" + funb)  # ... IS ...
+
+            else:  # else not all requested functions supported
+                self.__log_info("o>>" +
+                                " TN3270E" +  # x28
+                                " FUNCTIONS" +  # x03
+                                " REQUEST" +  # x07
+                                " %s", self.__tn3270e_functions(funb))
+                self.send_sub(b"\x28\x03\x07" + funb)  # ... REQUEST ...
 
         elif data == b"\xff\xfa\x18\x01":  # IAC SB TERMINAL-TYPE SEND
             self.__log_info("i<< TERMINAL-TYPE SEND")
@@ -4829,6 +4845,18 @@ class Tnz:
             return b"\xff"
 
         return b""
+
+    @staticmethod
+    def __tn3270e_functions(funb):
+        fun_names = {  # defined by RFC 2355
+            0: "BIND-IMAGE",
+            1: "DATA-STREAM-CTL",
+            2: "RESPONSES",
+            3: "SCS-CTL-CODES",
+            4: "SYSREQ",
+        }
+        funl = [fun_names.get(fun, repr(fun)) for fun in funb]
+        return " ".join(funl) if funl else "(none)"
 
     # Readonly properties
 
