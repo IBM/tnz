@@ -743,6 +743,7 @@ class Ati():
             new_ati.__pgm_number = new_ati.__gv["pgm_seed"]
             new_ati.__inwhen = False
             new_ati.__ranwhen = False
+            new_ati.__whens = []
 
         else:  # do not share globals (nor internal variables)
             new_ati = Ati()
