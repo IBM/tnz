@@ -4848,25 +4848,15 @@ class Tnz:
 
     @staticmethod
     def __tn3270e_functions(funb):
-        funl = []
-        for fun in funb:
-            if fun == 0:
-                funl.append("BIND-IMAGE")
-            elif fun == 1:
-                funl.append("DATA-STREAM-CTL")
-            elif fun == 2:
-                funl.append("RESPONSES")
-            elif fun == 3:
-                funl.append("SCS-CTL-CODES")
-            elif fun == 4:
-                funl.append("SYSREQ")
-            else:
-                funl.append(repr(fun))
-
-        if not funl:
-            return "(none)"
-
-        return " ".join(funl)
+        fun_names = {  # defined by RFC 2355
+            0: "BIND-IMAGE",
+            1: "DATA-STREAM-CTL",
+            2: "RESPONSES",
+            3: "SCS-CTL-CODES",
+            4: "SYSREQ",
+        }
+        funl = [fun_names.get(fun, repr(fun)) for fun in funb]
+        return " ".join(funl) if funl else "(none)"
 
     # Readonly properties
 
