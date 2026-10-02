@@ -700,7 +700,7 @@ class Ati():
         if name is None:
             name = self.__gv["SESSION"]
 
-        return self.__session_tnz.get(name, None)
+        return self.__session_tnz.get(str(name).upper().strip(), None)
 
     def keys(self):
         """Like dict.keys
