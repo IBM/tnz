@@ -89,3 +89,26 @@ def test_maxlostwarn():
             got_expected_error = True
 
         assert got_expected_error
+
+
+def test_when():
+    with Ati():
+        exit_count = 0
+
+        @when(lambda: True)
+        def when_exit():
+            nonlocal exit_count
+            exit_count += 1
+
+        when(when_exit, ON)
+        assert exit_count == 1
+        wait(0)
+        assert exit_count == 2
+
+        from tnz.ati import ati
+        with ati.new_program(share=True):
+            wait(0)
+            assert exit_count == 2
+
+        when(when_exit, OFF)
+        assert exit_count == 2
