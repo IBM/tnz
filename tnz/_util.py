@@ -7,7 +7,13 @@ Copyright 2021 IBM Inc. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import json
+import logging
+import os
+
 __author__ = "Neil Johnson"
+
+_logger = logging.getLogger(__name__)
 
 _SESSION_PS_SIZES = {
     "2": (24, 80),
@@ -69,3 +75,76 @@ def session_ps_14bit(max_h, max_w):
         return max_h, max_w
 
     return 16383 // max_w, max_w
+
+
+
+def load_theme():
+    """Load color theme from TNZ_THEME environment variable.
+    
+    Returns a dictionary mapping color names to RGB tuples (0-1000 scale),
+    or None if TNZ_THEME is not set or the file cannot be loaded.
+    
+    Expected JSON format:
+    {
+        "black": "#000000",
+        "red": "#f01818",
+        "green": "#24d830",
+        "yellow": "#ffff00",
+        "blue": "#7890f0",
+        "magenta": "#ff00ff",
+        "cyan": "#58f0f0",
+        "white": "#ffffff"
+    }
+    
+    Hex values should be in format #RRGGBB.
+    """
+    theme_path = os.environ.get('TNZ_THEME')
+    if not theme_path:
+        return None
+    
+    try:
+        with open(theme_path, 'r') as f:
+            theme_data = json.load(f)
+        
+        # Validate and convert hex colors to RGB tuples (0-1000 scale)
+        color_names = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white']
+        theme = {}
+        
+        for color_name in color_names:
+            if color_name not in theme_data:
+                _logger.warning(f"TNZ_THEME: Missing color '{color_name}' in theme file")
+                return None
+            
+            hex_color = theme_data[color_name]
+            if not isinstance(hex_color, str) or not hex_color.startswith('#') or len(hex_color) != 7:
+                _logger.warning(f"TNZ_THEME: Invalid hex color for '{color_name}': {hex_color}")
+                return None
+            
+            try:
+                # Convert hex to RGB (0-255) then to curses scale (0-1000)
+                r = int(hex_color[1:3], 16)
+                g = int(hex_color[3:5], 16)
+                b = int(hex_color[5:7], 16)
+                
+                # Convert from 0-255 to 0-1000 scale
+                r_1000 = int(round(r * 1000 / 255))
+                g_1000 = int(round(g * 1000 / 255))
+                b_1000 = int(round(b * 1000 / 255))
+                
+                theme[color_name] = (r_1000, g_1000, b_1000)
+            except ValueError as e:
+                _logger.warning(f"TNZ_THEME: Failed to parse hex color for '{color_name}': {hex_color} - {e}")
+                return None
+        
+        _logger.info(f"TNZ_THEME: Loaded theme from {theme_path}")
+        return theme
+        
+    except FileNotFoundError:
+        _logger.warning(f"TNZ_THEME: Theme file not found: {theme_path}")
+        return None
+    except json.JSONDecodeError as e:
+        _logger.warning(f"TNZ_THEME: Invalid JSON in theme file: {theme_path} - {e}")
+        return None
+    except Exception as e:
+        _logger.warning(f"TNZ_THEME: Error loading theme file: {theme_path} - {e}")
+        return None
