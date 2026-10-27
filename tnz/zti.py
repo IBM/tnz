@@ -157,6 +157,7 @@ class Zti(cmd.Cmd):
         self.downloads = []
         self.__downcnt = 0
         self.downloadaction = False
+        self.downloaded = False
 
         self.__sessel_y = None
         self.__sessel_x = 0
@@ -548,6 +549,7 @@ class Zti(cmd.Cmd):
         try:
             self.ddmrecv = True  # allow host-initiated ind$file get
             self.ddmsend = True  # allow host-initiated ind$file put
+            self.downloaded = False
             self.__prog_mode()
             try:
                 r2d2rv = self.__r2d2(self.stdscr, _WAIT_GOTO, -1)
@@ -2023,14 +2025,14 @@ HELP and HELP KEYS commands for more information.
                     if tns.seslost:
                         return 12
 
-                    if tns.ddmdata or tns.ddmdict:
-                        # TODO what if keylock_aidbuf?
-                        return 10  # have ddmdata
-
                     if self.downloadaction:
                         self.downloadaction = False
                         # TODO what if keylock_aidbuf?
                         return 11  # have download action
+
+                    if tns.uploading() or self.downloaded:
+                        # TODO what if keylock_aidbuf?
+                        return 10  # have ddmdata
 
                     if ((self.rewrite or
                          self.__dirty_ranges or
@@ -2079,14 +2081,14 @@ HELP and HELP KEYS commands for more information.
                 if tns.seslost:
                     return 12  # seslost
 
-                if tns.ddmdata or tns.ddmdict:
-                    # TODO what if keylock_aidbuf?
-                    return 10  # have ddmdata
-
                 if self.downloadaction:
                     self.downloadaction = False
                     # TODO what if keylock_aidbuf?
                     return 11  # have download action
+
+                if tns.uploading() or self.downloaded:
+                    # TODO what if keylock_aidbuf?
+                    return 10  # have ddmdata
 
                 # check for Alt+letter shortcut
 
@@ -3336,6 +3338,7 @@ HELP and HELP KEYS commands for more information.
             self.closed = False
             self.removed = False
             self.lastcmd = tns.lastcmd
+            self.ddmdict = tns.ddmdict.copy()
             self.downloadaction = None
             self.actiontaken = False
             self.zti = zti
@@ -3362,8 +3365,9 @@ HELP and HELP KEYS commands for more information.
                 self.tns = None
                 self.file.close()
                 zti = self.zti
-                if zti and not zti.downloadaction:
-                    if self.downloadaction:
+                if zti:
+                    zti.downloaded = True
+                    if not zti.downloadaction and self.downloadaction:
                         zti.downloadaction = True
 
         def error(self):
@@ -3421,7 +3425,10 @@ HELP and HELP KEYS commands for more information.
             else:
                 stat = "Open"
 
-            if self.downloadaction:
+            if self.ddmdict:
+                import json
+                actcmd = json.dumps(self.ddmdict)
+            elif self.downloadaction:
                 actcmd = self.downloadaction
             else:
                 actcmd = self.lastcmd
