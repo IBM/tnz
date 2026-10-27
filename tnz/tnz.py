@@ -146,7 +146,6 @@ class Tnz:
         self.__readlines_maxrow = 0
 
         self.__indstr = ""
-        self.__indsdict = {}
 
         # ddm limits for inbound and outbound
         # 32767 is what HOD documents as the max
@@ -1936,7 +1935,7 @@ class Tnz:
         if not self.__indstemp:
             return False
 
-        return self.__indsfile
+        return self.__indsfile and self.__ddmupload
 
     def wait(self, timeout=None, zti=None, key=None):
         """Wait for event.
@@ -2671,60 +2670,18 @@ class Tnz:
         isf = (len(isf)+2).to_bytes(2, byteorder="big")+isf
         rec += isf
 
+        self.ddmdict = indsdict = {}
         indstr = self.__indstr
         if not self.__indsfile and indstr:
             self.__indstr = ""
             try:
-                indsdict = json.loads(indstr)
+                self.ddmdict = indsdict = json.loads(indstr)
 
             except ValueError:
                 self.__log_error("Not valid json: %r", indstr)
 
             else:
                 self.__log_debug("indsdict: %r", indsdict)
-                filename = indsdict.get("filename", None)
-                enc = indsdict.get("encoding", None)
-                cmd = indsdict.get("command", None)
-                mode = "r" if ddmupload else "w"
-                if enc == "binary":
-                    mode += "b"
-                    enc = None
-                elif not enc:
-                    enc = self.encoding
-
-                if ddmupload and cmd and filename:
-                    os.system(cmd)
-
-                try:
-                    if ddmupload and cmd and not filename:
-                        self.__indsfile = os.popen(cmd)
-                    elif filename:
-                        self.__indsfile = open(filename, mode)
-
-                except OSError:
-                    self.__indstemp = False
-                    # Open Request Error
-                    rec = b"\x88"  # SF (Structured Field AID)
-                    isf = b"\xd0\x00\x08"  # D00008 Open Error
-                    isf += b"\x69\x04"  # Error Code Header
-                    isf += b"\x01\x00"  # Open Failed Exception
-                    isf = (len(isf)+2).to_bytes(2, byteorder="big")+isf
-                    rec += isf
-                    self.__log_debug("DDM Open Failed Exception send")
-                    self.send_3270_data(rec)
-                    self.__log_error("sf[14]=%r", b_str[start+14])
-                    self.__log_error("DDM Open File failed")
-                    return
-
-                except Exception:
-                    self.__indstemp = False
-                    self.__logger.exception("open file error")
-
-                else:
-                    self.__indstemp = True
-                    self.__indspend = b""
-                    self.__indsenc = enc
-                    self.__indsdict = {} if ddmupload else indsdict
 
         if (not self.__indsfile and
             ((not ddmupload and not self.ddmrecv) or
@@ -3006,7 +2963,7 @@ class Tnz:
                 # unsolicited
                 if self.__ddmrecnum == 1:
                     self.__ddmtdat = ""
-                    if self.__indsdict:
+                    if self.ddmdict:
                         if data.endswith(b"\x1a"):
                             data = data[:-1]
 
@@ -3026,24 +2983,6 @@ class Tnz:
                 self.__ddmfile = self.__indsfile
                 self.__indsfile = None
                 self.__indstemp = False
-                indsdict = self.__indsdict
-                self.ddmdict = indsdict
-                if indsdict:
-                    self.__indsdict = {}
-                    cmd = indsdict.get("command", None)
-                    nowait = indsdict.get("async", None)
-                    try:
-                        if cmd and not nowait:
-                            os.system(cmd)
-                        elif cmd and nowait:
-                            import subprocess
-                            subprocess.Popen(cmd,
-                                             stdin=None,
-                                             stdout=None,
-                                             stderr=None,
-                                             close_fds=True)
-                    except Exception:
-                        self.__logger.exception("command error")
 
             else:
                 if self.__indsfile is self.file_appends:
