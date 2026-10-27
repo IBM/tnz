@@ -1985,6 +1985,24 @@ HELP and HELP KEYS commands for more information.
         elif timeout <= 0:
             raise ValueError("Expected timeout>0")
 
+        # readlines_pa2 can interfere with emulator usability
+
+        readlines_pa2 = False  # init - no need to modify/restore
+
+        def restore_readlines_pa2():
+            nonlocal readlines_pa2
+            if readlines_pa2:
+                readlines_pa2 = False
+                if tns := ati.ati.get_tnz():
+                    tns.readlines_pa2 = True
+
+        def disable_readlines_pa2():
+            nonlocal readlines_pa2
+            if not show and (tns := ati.ati.get_tnz()):
+                if tns.readlines_pa2:
+                    readlines_pa2 = True
+                    tns.readlines_pa2 = False
+
         insmode = False
         if show:
             self.__prog_curs_vis = 0
@@ -2000,6 +2018,7 @@ HELP and HELP KEYS commands for more information.
         paste = None
         keylock_aidbuf = []  # aid callables buffered for KEYLOCK = 1
 
+        disable_readlines_pa2()
         try:
             while True:
                 if self.cmdqueue:  # plugin added cmd to process?
@@ -2504,11 +2523,13 @@ HELP and HELP KEYS commands for more information.
                     if pos < 1:
                         pos = rexx.words(sessions)
 
+                    restore_readlines_pa2()
                     session = rexx.word(sessions, pos)
                     ati.ati.session = session
                     if ati.ati.seslost:
                         return 12
 
+                    disable_readlines_pa2()
                     self.rewrite = True
 
                 elif (cstr == "\x1b\x1b[6~" or  # Alt+PgDn Putty
@@ -2528,11 +2549,13 @@ HELP and HELP KEYS commands for more information.
                     if pos > rexx.words(sessions):
                         pos = 1
 
+                    restore_readlines_pa2()
                     session = rexx.word(sessions, pos)
                     ati.ati.session = session
                     if ati.ati.seslost:
                         return 12
 
+                    disable_readlines_pa2()
                     self.rewrite = True
 
                 elif cstr == "\x17":  # Ctrl+W
@@ -2548,6 +2571,7 @@ HELP and HELP KEYS commands for more information.
                     if ati.ati.seslost:
                         return 12
 
+                    disable_readlines_pa2()
                     self.rewrite = True
 
                 elif cstr == "\x0f":  # Ctrl+O
@@ -2629,10 +2653,12 @@ HELP and HELP KEYS commands for more information.
                                 keylock_aidbuf.clear()
                                 curses.beep()
 
+                            restore_readlines_pa2()
                             ati.ati.session = session
                             if ati.ati.seslost:
                                 return
 
+                            disable_readlines_pa2()
                             self.rewrite = True
 
                     else:
@@ -2687,7 +2713,7 @@ HELP and HELP KEYS commands for more information.
                 if tout > 0:
                     tout = max(0, etime-time.time())
         finally:
-            pass
+            restore_readlines_pa2()
 
     def __refresh(self):
         # put cursor in desired state before we may suspend
