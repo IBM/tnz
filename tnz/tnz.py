@@ -8,6 +8,8 @@ Usage:
 Environment variables used:
     SESSION_PS_SIZE
     SESSION_SECLEVEL
+    SESSION_SSL_MAXIMUM_TLS
+    SESSION_SSL_MINIMUM_TLS
     SESSION_SSL_VERIFY
     TNZ_COLORS
     TNZ_LOGGING
@@ -3828,9 +3830,25 @@ class Tnz:
         else:
             context.verify_mode = ssl.CERT_NONE
 
-        minimum_version = getenv("SESSION_SSL_MINIMUM_TLS")
-        if minimum_version == "1.1":
-            context.minimum_version = ssl.TLSVersion.TLSv1_1
+        if tls_version := getenv("SESSION_SSL_MINIMUM_TLS"):
+            attr = f"TLSv{tls_version.replace('.', '_')}"
+            if ver := getattr(ssl.TLSVersion, attr, None):
+                context.minimum_version = ver
+            else:
+                self.__log_error(
+                    "Invalid SESSION_SSL_MINIMUM_TLS: %r",
+                    tls_version,
+                )
+
+        if tls_version := getenv("SESSION_SSL_MAXIMUM_TLS"):
+            attr = f"TLSv{tls_version.replace('.', '_')}"
+            if ver := getattr(ssl.TLSVersion, attr, None):
+                context.maximum_version = ver
+            else:
+                self.__log_error(
+                    "Invalid SESSION_SSL_MAXIMUM_TLS: %r",
+                    tls_version,
+                )
 
         return context
 
