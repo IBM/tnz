@@ -1011,6 +1011,36 @@ class Term():
         tty.setcbreak(termi_fd)
 
     @classmethod
+    @_log_errors
+    def cbreak_raw(cls):
+        """Enable terminal cbreak mode with raw character delivery.
+        """
+        _logger.debug("cbreak_raw()")
+
+        termi_fd = cls.__termi_fd
+
+        if termi_fd is None:
+            cls.__initscr_required()
+
+        if _osname == "Windows":
+            cls.cbreak()
+            return
+
+        tty.setcbreak(termi_fd)
+        attr = termios.tcgetattr(termi_fd)
+        attr[3] &= ~termios.ECHO
+        vdis = getattr(termios, "_POSIX_VDISABLE", b"\x00")
+        if isinstance(vdis, int):
+            vdis = bytes([vdis])
+
+        attr[6][termios.VINTR] = vdis
+        attr[6][termios.VQUIT] = vdis
+        attr[0] &= ~termios.INLCR
+        attr[0] &= ~termios.ICRNL
+        attr[0] &= ~termios.IXON
+        cls.__set_terminal_attr(termi_fd, None, attr)
+
+    @classmethod
     def color_content(cls, color_number):
         """Get r,g,b for input color.
         """
@@ -1139,7 +1169,7 @@ class Term():
              program to redraw the screen
           2. Flipping the reverse attribute when writing
              to the terminal
-          3. Use the refresh as a signal that the screen
+          3. Use the refresh as an indication that the screen
              has been redrawn. Pause for a small amount of
              time to allow the user to see the reversed
              screen. Return to normal drawing.
@@ -1389,8 +1419,7 @@ class Term():
             cls.__set_terminal_attr(termi_fd, when, attr)
 
         else:
-            cls.cbreak()
-            cls.noecho()
+            cls.cbreak_raw()
 
     @classmethod
     @_log_errors
