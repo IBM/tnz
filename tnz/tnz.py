@@ -163,14 +163,14 @@ class Tnz:
         self._limout = 32767
 
         self._sendbuf = []
-        self.local_do = []
-        self.local_will = []
-        self.local_wont = []
-        self.local_dont = []
-        self.remote_do = []
-        self.remote_will = []
-        self.remote_wont = []
-        self.remote_dont = []
+        self.local_do = set()
+        self.local_will = set()
+        self.local_wont = set()
+        self.local_dont = set()
+        self.remote_do = set()
+        self.remote_will = set()
+        self.remote_wont = set()
+        self.remote_dont = set()
 
         self.bytes_sent = 0
         self.bytes_received = 0
@@ -232,15 +232,11 @@ class Tnz:
                 self.encoding = "cp310", 0xf1
         else:
             import locale
-            preferredencoding = locale.getpreferredencoding()
-            if preferredencoding.upper().startswith("UTF"):
+            if locale.getpreferredencoding().upper().startswith("UTF"):
                 from . import cp310 as _
                 self.encoding = "cp310", 0xf1
 
-        if name:
-            self.name = name
-        else:
-            self.name = str(hash(self))
+        self.name = name or str(hash(self))
 
         # Begin "smart" detection of default properties
 
@@ -386,10 +382,7 @@ class Tnz:
                 pass
 
         if port is None:
-            if secure is False:
-                port = 23  # default insecure port
-            else:
-                port = 992  # default port
+            port = 23 if secure is False else 992  # 23 is insecure
 
         if event:
             self._event = event
@@ -446,9 +439,7 @@ class Tnz:
 
         context = self.__create_context(verifycert) if secure else None
         coro = self.__connect(_TnzProtocol, host, port, context)
-        loop = self.__get_event_loop()
-        task = loop.create_task(coro)
-        self.__connect_task = task
+        self.__connect_task = self.__get_event_loop().create_task(coro)
 
     def ddm_in_progress(self):
         """Return bool indicating if ddm is in progress.
@@ -668,18 +659,10 @@ class Tnz:
         try:
             self.__indsenc = encoding
             if encoding:
-                if " APPEND " in opts:
-                    mode = "a"
-                else:
-                    mode = "w"
-
+                mode = "a" if " APPEND " in opts else "w"
                 enc = "UTF-8"  # avoid encoding errors
             else:
-                if " APPEND " in opts:
-                    mode = "ab"
-                else:
-                    mode = "wb"
-
+                mode = "ab" if " APPEND " in opts else "wb"
                 enc = None
 
             with open(filename, mode, encoding=enc) as self.__indsfile:
@@ -763,11 +746,7 @@ class Tnz:
         is used when the vector goes to the end of the bytearray.
         """
         saddr1 = saddr
-        if saddr >= eaddr:
-            eaddr1 = self.buffer_size
-        else:
-            eaddr1 = eaddr
-
+        eaddr1 = self.buffer_size if saddr >= eaddr else eaddr
         maxcol = self.maxcol
         while saddr1 != eaddr1:
             row = saddr1 // maxcol
@@ -840,8 +819,7 @@ class Tnz:
             return
 
         buffer_size = self.buffer_size
-        addrm1 = (addr-1) % buffer_size
-        if faddr in (addr, addrm1):
+        if faddr in (addr, (addr-1) % buffer_size):
             addr = (faddr-1) % buffer_size
             faddr, fav = self.field(addr)
 
@@ -1050,11 +1028,7 @@ class Tnz:
     def key_home(self, zti=None):
         """Process home key.
         """
-        if self.is_protected(0):
-            curadd = self.__tab(0)
-        else:
-            curadd = 0
-
+        curadd = self.__tab(0) if self.is_protected(0) else 0
         self.__log_debug(" home -> %r", curadd)
         self.curadd = curadd
 
@@ -1100,8 +1074,7 @@ class Tnz:
         inslen = 0
         i = (addr2 - 1) % buffer_size
         while inslen < len(text):
-            dc_byte = plane_dc[i]
-            if dc_byte not in (0, 0x40):  # not 0 or space
+            if plane_dc[i] not in (0, 0x40):  # not 0 or space
                 break
 
             inslen += 1
@@ -1135,8 +1108,7 @@ class Tnz:
         """Process newline key.
         """
         self.__log_debug("  newline")
-        addr0 = self.curadd
-        line = addr0 // self.maxcol  # current line
+        line = self.curadd // self.maxcol  # current line
         addr1 = (line+1) * self.maxcol  # first col in next row
         buffer_size = self.buffer_size
         if self.field(0) == (-1, 0):  # if no fields
@@ -1168,8 +1140,7 @@ class Tnz:
         """
         self.__log_debug("  key_word_right")
         caddr = self.curadd
-        text = self.scrstr(caddr, caddr)
-        mat = re.search(r"(?<=\s)\S", text)
+        mat = re.search(r"(?<=\s)\S", self.scrstr(caddr, caddr))
         if mat:
             self.curadd = (caddr+mat.start()) % self.buffer_size
 
@@ -1267,8 +1238,7 @@ class Tnz:
         ca0 = self.curadd
         ypos, xpos = divmod(ca0, self.maxcol)
         chars_pasted = 0
-        datal = data.splitlines()
-        for lined in datal:
+        for lined in data.splitlines():
             if lined:
                 self.set_cursor_position(ypos+1, xpos+1)
                 rrv = self.key_data(lined, onerow=True, zti=zti)
@@ -1431,9 +1401,8 @@ class Tnz:
             # the same in both ascii and ebcdic. The LF
             # should NOT be a problem since ebcdic 0A is RPT.
             # What sort of file would have a RPT???
-            parmsu = parms.upper()
             preopt = rexx.subword(parms, 1, 1)
-            opts = rexx.subword(parmsu, 2).split()
+            opts = rexx.subword(parms.upper(), 2).split()
             paren = False
             if "(" in opts:
                 i = opts.index("(")
@@ -1472,11 +1441,7 @@ class Tnz:
 
         try:
             self.__indsenc = encoding
-            if encoding:
-                mode = "r"
-            else:
-                mode = "rb"
-
+            mode = "r" if encoding else "rb"
             self.__indspend = b""
             with open(filename, mode) as self.__indsfile:
                 # do not enter IND$FILE until file is open
@@ -1518,8 +1483,7 @@ class Tnz:
         for addr1 in self.__iterbs_addr(plane_cs, saddr, eaddr):
             bytes1 = rcba(plane_dc, addr0, addr1)
             bytes1 = bytes1.translate(trans_dc_to_c)
-            cii = plane_cs[addr0]
-            strl.append(codec_info[cii].decode(bytes1)[0])
+            strl.append(codec_info[plane_cs[addr0]].decode(bytes1)[0])
             addr0 = addr1
 
         str1 = "".join(strl).translate(self.__trans_ords)
@@ -1540,8 +1504,7 @@ class Tnz:
             return False
 
         saddr = (faddr + 1) % self.buffer_size
-        eaddr = (faddr + 2) % self.buffer_size
-        designator = self.scrstr(saddr, eaddr)
+        designator = self.scrstr(saddr, (faddr + 2) % self.buffer_size)
         if designator not in ("?", ">", " ", "\0", "&"):
             return False
 
@@ -1746,11 +1709,8 @@ class Tnz:
         elif opt == 25:  # END-OF-RECORD
             self.__eor = True
 
-        if opt not in self.local_do:
-            self.local_do.append(opt)
-            if opt in self.local_dont:
-                self.local_dont.remove(opt)
-
+        self.local_do.add(opt)
+        self.local_dont.discard(opt)
         self.__log_info("o>> IAC DO %s", self.__tnon(opt))
         self._sendbuf.append(bytes([0xff, 0xfd, opt]))  # IAC DO opt
         if not buffer:
@@ -1765,11 +1725,8 @@ class Tnz:
         elif opt == 25:  # END-OF-RECORD
             self.__eor = False
 
-        if opt not in self.local_dont:
-            self.local_dont.append(opt)
-            if opt in self.local_do:
-                self.local_do.remove(opt)
-
+        self.local_dont.add(opt)
+        self.local_do.discard(opt)
         self.__log_info("o>> IAC DONT %s", self.__tnon(opt))
         self._sendbuf.append(bytes([0xff, 0xfe, opt]))
         if not buffer:
@@ -1815,11 +1772,8 @@ class Tnz:
     def send_will(self, opt, buffer=False):
         """Send WILL to the host.
         """
-        if opt not in self.local_will:
-            self.local_will.append(opt)
-            if opt in self.local_wont:
-                self.local_wont.remove(opt)
-
+        self.local_will.add(opt)
+        self.local_wont.discard(opt)
         self.__log_info("o>> IAC WILL %s", self.__tnon(opt))
         self._sendbuf.append(bytes([0xff, 0xfb, opt]))  # IAC WILL opt
         if not buffer:
@@ -1828,11 +1782,8 @@ class Tnz:
     def send_wont(self, opt, buffer=False):
         """Send WON'T to the host.
         """
-        if opt not in self.local_wont:
-            self.local_wont.append(opt)
-            if opt in self.local_will:
-                self.local_will.remove(opt)
-
+        self.local_wont.add(opt)
+        self.local_will.discard(opt)
         self.__log_info("o>> IAC WONT %s", self.__tnon(opt))
         self._sendbuf.append(bytes([0xff, 0xfc, opt]))
         if not buffer:
@@ -1937,7 +1888,7 @@ class Tnz:
         if not self.__indstemp:
             return False
 
-        return self.__indsfile and self.__ddmupload
+        return bool(self.__indsfile and self.__ddmupload)
 
     def wait(self, timeout=None, zti=None, key=None):
         """Wait for event.
@@ -1963,7 +1914,6 @@ class Tnz:
         if self.__waiting:
             raise TnzError("Already waiting")
 
-        event_wait = wait_event.wait()
         if timeout is None:
             timeout_handle = None
         else:
@@ -1981,7 +1931,7 @@ class Tnz:
                 self.ddmrecv = zti.ddmrecv  # host-initiated get
                 self.ddmsend = zti.ddmsend  # host-initiated put
 
-            self.__loop.run_until_complete(event_wait)
+            self.__loop.run_until_complete(wait_event.wait())
             if self.seslost:
                 return True
 
@@ -2085,8 +2035,7 @@ class Tnz:
                     byte_start = subc_start
 
                 else:
-                    mat_start = cmd_mat.start()
-                    self._data_telnet(buff, byte_start, mat_start)
+                    self._data_telnet(buff, byte_start, cmd_mat.start())
                     byte_start = cmd_mat.end()
                     self._process(cmd)
 
@@ -2158,8 +2107,7 @@ class Tnz:
             else:
                 raise TnzError(f"DATA-TYPE {data_type} not implemented")
 
-        command_hex = hex(b_str[0])
-        rtn_name = "_process_command_" + command_hex
+        rtn_name = "_process_command_" + hex(b_str[0])
         rtn = getattr(self, rtn_name, self._process_command_unknown)
         rtn(b_str, 0, len(b_str), zti=zti)
 
@@ -2215,20 +2163,15 @@ class Tnz:
                 # e.g. Timing mark (6)
                 self.send_wont(data[2], buffer=True)
 
-            if opt not in self.remote_do:
-                self.remote_do.append(opt)
-                if opt in self.remote_dont:
-                    self.remote_dont.remove(opt)
+            self.remote_do.add(opt)
+            self.remote_dont.discard(opt)
 
         elif data[:2] == b"\xff\xfe":  # //IAC DON'T
             self.__log_info("i<< IAC DONT "+self.__tnon(data[2]))
 
             opt = data[2]
-            if opt not in self.remote_dont:
-                self.remote_dont.append(opt)
-                if opt in self.remote_do:
-                    self.remote_do.remove(opt)
-
+            self.remote_dont.add(opt)
+            self.remote_do.discard(opt)
             if opt not in (0, 25):  # END-OF_RECORD nor TRANSMIT-BINARY
                 if opt not in self.local_wont:
                     self.send_wont(data[2], buffer=True)
@@ -2244,19 +2187,15 @@ class Tnz:
                 self.send_do(0, buffer=True)
 
             opt = data[2]
-            if opt not in self.remote_will:
-                self.remote_will.append(opt)
-                if opt in self.remote_wont:
-                    self.remote_wont.remove(opt)
+            self.remote_will.add(opt)
+            self.remote_wont.discard(opt)
 
         elif data[:2] == b"\xff\xfc":  # //IAC WON'T
             self.__log_info("i<< IAC WONT %s", self.__tnon(data[2]))
 
             opt = data[2]
-            if opt not in self.remote_wont:
-                self.remote_wont.append(opt)
-                if opt in self.remote_will:
-                    self.remote_will.remove(opt)
+            self.remote_wont.add(opt)
+            self.remote_will.discard(opt)
 
         elif data[:2] == b"\xff\xef":  # IAC EOR
             pass
@@ -2366,10 +2305,8 @@ class Tnz:
 
         elif data == b"\xff\xfa\x2e\x01":  # IAC SB ...
             self.__log_info("i<< START_TLS FOLLOWS")
-            context = self.__create_context()
-            coro = self.__start_tls(context)
-            task = self.__loop.create_task(coro)
-            self.__connect_task = task
+            coro = self.__start_tls(self.__create_context())
+            self.__connect_task = self.__loop.create_task(coro)
 
         elif data[0] == 255 and 241 <= data[1] <= 249:  # IAC command
             self.__log_info("i<< IAC %d", data[1])
@@ -2417,7 +2354,7 @@ class Tnz:
         """
         cmnd_len = stop - start
         if cmnd_len != 5:
-            raise TnzError("EAU must be 5 bytes, got {cmnd_len}")
+            raise TnzError(f"EAU must be 5 bytes, got {cmnd_len}")
 
         self._process_eau(pid=pid, zti=zti)
 
@@ -2431,7 +2368,7 @@ class Tnz:
         """
         cmnd_len = stop - start
         if cmnd_len != 1:
-            raise TnzError("RMA must be 1 byte, got {cmnd_len}")
+            raise TnzError(f"RMA must be 1 byte, got {cmnd_len}")
 
         self.__log_debug("Read Modified All (RMA)")
         self.read_state = self.__ReadState.NORMAL  # Normal Read state
@@ -2451,7 +2388,7 @@ class Tnz:
         """
         cmnd_len = stop - start
         if cmnd_len != 1:
-            raise TnzError("RB must be 1 byte, got {cmnd_len}")
+            raise TnzError(f"RB must be 1 byte, got {cmnd_len}")
 
         self.read_state = self.__ReadState.NORMAL  # Normal Read state
         self.__read_buffer()  # send reply
@@ -2464,7 +2401,7 @@ class Tnz:
         self.__log_debug("WSF")
         cmnd_len = stop - start
         if cmnd_len < 4:
-            raise TnzError("WSF needs 4 bytes, got {cmnd_len}")
+            raise TnzError(f"WSF needs 4 bytes, got {cmnd_len}")
 
         from_bytes = int.from_bytes
         i = start + 1
@@ -2481,8 +2418,7 @@ class Tnz:
                 self.__log_error("sf=%s", b_str[i:stop].hex())
                 raise TnzError("WSF len and data inconsistent")
 
-            wsf_hex = hex(b_str[i+2])
-            rtn_name = "_process_wsf_" + wsf_hex
+            rtn_name = "_process_wsf_" + hex(b_str[i+2])
             rtn = getattr(self, rtn_name, self._process_wsf_unknown)
             rtn(b_str, i, i+sfl, zti=zti)
             i += sfl
@@ -2502,7 +2438,7 @@ class Tnz:
         self.__log_debug("Read Modified (RM)")
         command_len = stop - start
         if command_len != 1:
-            raise TnzError("RM must be 1 byte, got {command_len}")
+            raise TnzError(f"RM must be 1 byte, got {command_len}")
 
         # TODO: if read_state is Retry Enter, do retry of INOP
         # TODO: if read_state is Retry Read, do retry of read
@@ -2528,7 +2464,7 @@ class Tnz:
         """
         command_len = stop - start
         if command_len != 1:
-            raise TnzError("EAU must be 1 byte, got {command_len}")
+            raise TnzError(f"EAU must be 1 byte, got {command_len}")
 
         return self._process_eau(pid=0, zti=zti)
 
@@ -2548,11 +2484,10 @@ class Tnz:
     _process_command_0x11 = _process_command_0xf3  # WSF
 
     def _process_command_unknown(self, b_str, start, stop, zti=None):
-        command_hex = hex(b_str[start])
         self.__log_error(b_str[start:stop].hex())
         self.__log_error(self.codec_info[0].
                          decode(b_str[start:stop], errors="ignore")[0])
-        raise TnzError(f"Unknown command: {command_hex}")
+        raise TnzError(f"Unknown command: {hex(b_str[start])}")
 
     def _process_data(self, data, begidx, endidx, zti=None):
         """Process host character data.
@@ -2570,8 +2505,7 @@ class Tnz:
             self.__log_debug("SPECIAL DATA: %s", spc)
             self.__indstr += spc
 
-        row = self.bufadd // self.maxcol
-        if row < self.__readlines_row:
+        if self.bufadd // self.maxcol < self.__readlines_row:
             self.__readlines_row = 0
 
         saddr = self.bufadd
@@ -2625,7 +2559,7 @@ class Tnz:
 
         ddm_len = stop - start
         if ddm_len < 35:
-            raise TnzError("DDM-Open needs 35 bytes, got {ddm_len}")
+            raise TnzError(f"DDM-Open needs 35 bytes, got {ddm_len}")
 
         # b_str[start:stop]
         #  5:11 = 010601010403
@@ -2799,7 +2733,7 @@ class Tnz:
             self.__log_error("DDM Get unexpected")
             return
 
-        if b_str[(start+5):(start+16)] != b"\x01\x04\x00\x80":
+        if b_str[(start+5):(start+9)] != b"\x01\x04\x00\x80":
             self.__log_error("No Feedback Requested for Get")
             self.__log_error("sf=%r", b_str[start:stop])
 
@@ -2871,7 +2805,7 @@ class Tnz:
         self.__log_debug("DDM Data To Insert")
         ddm_len = stop - start
         if ddm_len < 11:
-            raise TnzError("DDM-Open needs 11 bytes, got {ddm_len}")
+            raise TnzError(f"DDM d04704 needs 11 bytes, got {ddm_len}")
 
         if not self.__ddmopen:
             # Insert Request Error
@@ -3520,8 +3454,7 @@ class Tnz:
         Called by process_command_0xf3.
         Input is outbound structured field data.
         """
-        pid = b_str[start+3]  # Partition identifier (OO through 7E)
-        if pid:
+        if b_str[start+3]:  # Partition identifier (OO through 7E)
             raise TnzError("Non-zero PID not implemented")
 
         mode = b_str[start+4]
@@ -3600,8 +3533,7 @@ class Tnz:
             MSG : Transfer Complete from host
             Data Acknowledgement from PC
         """
-        ddm_req = b_str[(start+2):(start+5)]
-        rtn_name = "_process_ddm_0x" + ddm_req.hex()
+        rtn_name = "_process_ddm_0x" + b_str[(start+2):(start+5)].hex()
         rtn = getattr(self, rtn_name, self._process_ddm_unknown)
         rtn(b_str, start, stop, zti=zti)
 
@@ -3908,11 +3840,7 @@ class Tnz:
         if eaddr is None:
             eaddr = saddr
 
-        if saddr >= eaddr:
-            endpos = len(bav)
-        else:
-            endpos = eaddr
-
+        endpos = len(bav) if saddr >= eaddr else eaddr
         finditer = self.__patbs.finditer
         for mat in finditer(bav, saddr, endpos):
             taddr = mat.end()
@@ -3963,7 +3891,6 @@ class Tnz:
                 self.__log_debug(" data rejected, on field attribute")
                 return chars_keyed  # on field attribute
 
-            datalen = len(data)
             # ca2 = (ca1 + datalen) % buffer_size
 
             fa1, fattr = field(ca1)
@@ -3980,7 +3907,7 @@ class Tnz:
             else:
                 fieldlen = buffer_size + fa2 - ca1
 
-            usedlen = min(fieldlen, datalen)
+            usedlen = min(fieldlen, len(data))
             zeros = b"\x00" * usedlen
 
             self.ucba(plane_dc, ca1, data[:usedlen])
@@ -4325,17 +4252,11 @@ class Tnz:
         self.send_3270_data(rec)
 
     def __range_addr(self, saddr, eaddr):
-        if saddr >= eaddr:
-            endpos = self.buffer_size
-        else:
-            endpos = eaddr
+        endpos = self.buffer_size if saddr >= eaddr else eaddr
 
-        for addr in range(saddr, endpos):
-            yield addr
-
+        yield from range(saddr, endpos)
         if 0 < eaddr <= saddr:
-            for addr in range(0, eaddr):
-                yield addr
+            yield from range(0, eaddr)
 
     def __read_buffer(self):
         """Process RB (Read Buffer) 3270 Data Stream Command.
@@ -4587,8 +4508,7 @@ class Tnz:
         is_protected_attr = self.is_protected_attr
         saddr = (saddr+1) % self.buffer_size
         for sa1, _ in self.char_addrs(saddr, eaddr):
-            fattr = plane_fa[sa1-1]
-            if not is_protected_attr(fattr):
+            if not is_protected_attr(plane_fa[sa1-1]):
                 return sa1
 
         return 0
@@ -4608,9 +4528,7 @@ class Tnz:
         if cls.__logger:
             return
 
-        logger = logging.getLogger("tnz")
-        cls.__logger = logger
-
+        cls.__logger = logging.getLogger("tnz")
         tnz_logging = os.getenv("TNZ_LOGGING")
         if tnz_logging == "":
             return
@@ -4786,9 +4704,8 @@ class Tnz:
             len1 = bdl
             len2 = 0
 
-        enda = start + len1
         endd = begidx + len1
-        dst[start:enda] = src[begidx:endd]
+        dst[start:(start + len1)] = src[begidx:endd]
         if len2:
             dst[:len2] = src[endd:endidx]
 
