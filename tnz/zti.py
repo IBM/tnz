@@ -1449,24 +1449,31 @@ HELP and HELP KEYS commands for more information.
         if start >= end:
             raise ValueError(f"{start} >= {end}")
 
-        for i, (sidx, eidx) in enumerate(self.__dirty_ranges):
-            if start == sidx and end == eidx:
-                self.__dirty_ranges.pop(i)
-                return
+        # The list is kept sorted and non-overlapping.
+        # Cleaned ranges are usually at the end, so search backward.
+        # Entries ranges[lo:hi] overlap [start, end).
+        ranges = self.__dirty_ranges
+        lo = hi = len(ranges)
+        while lo and ranges[lo-1][1] > start:  # not before
+            lo -= 1
+            if ranges[lo][0] >= end:  # after, leave it alone
+                hi = lo
 
-            if start <= sidx and end >= eidx:
-                self.__dirty_ranges.pop(i)
+        if lo == hi:  # nothing overlaps
+            return
 
-            elif start <= sidx and end > sidx:
-                self.__dirty_ranges[i] = (end, eidx)
+        # Only the first overlapped entry can leave a left remainder
+        # and only the last can leave a right remainder.
+        remains = []
+        sidx = ranges[lo][0]
+        if sidx < start:  # left remainder
+            remains.append((sidx, start))
 
-            elif start < eidx and end >= eidx:
-                self.__dirty_ranges[i] = (sidx, start)
+        eidx = ranges[hi-1][1]
+        if end < eidx:  # right remainder
+            remains.append((end, eidx))
 
-            elif start > sidx and end < eidx:
-                self.__dirty_ranges[i] = (sidx, start)
-                self.__dirty_ranges.append((end, eidx))
-                return
+        ranges[lo:hi] = remains
 
     def __color_setup(self):
         if self.__has_color is True:
@@ -1522,27 +1529,21 @@ HELP and HELP KEYS commands for more information.
             self.__dirty_range(start, tns.buffer_size)
             return
 
-        start1 = start
-        end1 = end
-        for i, (sidx, eidx) in enumerate(self.__dirty_ranges):
-            if start >= sidx and end <= eidx:
-                return
+        # The list is kept sorted, non-overlapping, and non-adjacent.
+        # Merge every entry that overlaps or touches [start, end).
+        # New ranges usually belong at the end, so search backward.
+        ranges = self.__dirty_ranges
+        lo = hi = len(ranges)
+        while lo and ranges[lo-1][1] >= start:  # not before
+            lo -= 1
+            sidx, eidx = ranges[lo]
+            if sidx > end:  # after, leave it alone
+                hi = lo
+            else:  # overlaps or touches, merge it
+                start = min(start, sidx)
+                end = max(end, eidx)
 
-            if start <= sidx and end >= eidx:
-                self.__dirty_ranges.pop(i)
-
-            elif start <= sidx and end >= sidx:
-                self.__dirty_ranges.pop(i)
-                end1 = eidx
-
-            elif start <= eidx and end >= eidx:
-                self.__dirty_ranges.pop(i)
-                start1 = sidx
-
-        if start1 != start or end1 != end:
-            return self.__dirty_range(start1, end1)
-
-        self.__dirty_ranges.append((start, end))
+        ranges[lo:hi] = [(start, end)]
 
     def __display(self, window, showcursor):
         _logger.debug("begin __display")
