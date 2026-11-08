@@ -4884,21 +4884,16 @@ def bit6(control_int):
     make the byte a printable character. See figure D-1 in Data
     Stream Programmers Reference.
     """
-    control_int &= 63  # x3f - zero bits 0,1
-    cc11 = control_int | 192  # input with bits 0,1 = 11
+    if 0 < (control_int & 0x0f) < 10:
+        if (control_int & 0x3f) == 0x21:  # 0x21
+            return 0x61
+        else:
+            return control_int | 0xc0  # aa aaaa -> 11aa aaaa
 
-    if control_int == 48:
-        return cc11  # 11 0000 -> xF0
+    if (control_int & 0x3f) == 0x30:
+        return 0xf0
 
-    cc01 = control_int | 64  # input with bits 0,1 = 01
-
-    if control_int == 33:
-        return cc01  # 10 0001 -> x61
-
-    if 0 < (control_int & 0x0f) < 10:  # if low nibble 1-9
-        return cc11  # aa aaaa -> 11aa aaaa
-
-    return cc01  # aa aaaa -> 01aa aaaa
+    return (control_int & 0x3f) | 0x40  # aa aaaa -> 01aa aaaa
 
 
 def connect(host=None, port=None,
