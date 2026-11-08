@@ -55,6 +55,7 @@ if __name__ == "__main__":
 
 import atexit
 import cmd
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 import platform
@@ -62,7 +63,6 @@ import re
 import signal
 import sys
 import tempfile
-import threading
 import time
 import traceback
 
@@ -135,7 +135,8 @@ class Zti(cmd.Cmd):
         self.twin_end = None
         self.__loop = None
         self.__winch = False
-        self.__thread = None
+        self.__threadpool = None
+        self.__future = None
         self.__tty_mode = 0  # 0=shell, 1=prog
         self.__has_color = None
 
@@ -164,9 +165,9 @@ class Zti(cmd.Cmd):
         self.__sessel = []
 
         self.__stdin_selected = False
-        self.__handling = set()
+        self.__handling = {}
         if _osname == "Windows":
-            self.__signals = self.__handling
+            self.__signals = set()
         else:
             self.__signals = {signal.SIGWINCH, signal.SIGTSTP}
 
@@ -196,20 +197,26 @@ class Zti(cmd.Cmd):
                 self.pend_intro = intro
                 intro = ""
 
-        while True:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            self.__threadpool = pool
             try:
-                text = intro
-                intro = ""
-                super().cmdloop(intro=text)
-                return
+                while True:
+                    try:
+                        text = intro
+                        intro = ""
+                        super().cmdloop(intro=text)
+                        return
 
-            except KeyboardInterrupt:
-                self.__shell_mode()
-                print("\nKeyboardInterrupt")
+                    except KeyboardInterrupt:
+                        self.__shell_mode()
+                        print("\nKeyboardInterrupt")
 
-            except BaseException:
-                self.postloop()
-                raise
+                    except BaseException:
+                        self.postloop()
+                        raise
+            finally:
+                self.__bg_wait_end()
+                self.__threadpool = None
 
     def complete_goto(self, text, line, begidx, endidx):
         textu = text.upper()
@@ -552,7 +559,7 @@ class Zti(cmd.Cmd):
             self.downloaded = False
             self.__prog_mode()
             try:
-                r2d2rv = self.__r2d2(self.stdscr, _WAIT_GOTO, -1)
+                r2d2rv = self.__run_r2d2(self.stdscr, _WAIT_GOTO, -1)
 
             except tnz.TnzTerminalError:
                 self.print_stack(exc=True)
@@ -853,7 +860,7 @@ class Zti(cmd.Cmd):
         """
         self.__bg_wait_end()
         self.__prog_mode()
-        self.__r2d2(self.stdscr, _WAIT_FOREVER, -1)
+        self.__run_r2d2(self.stdscr, _WAIT_FOREVER, -1)
 
     def do_size(self, arg):
         # Get/Set terminal size
@@ -1288,7 +1295,7 @@ HELP KEYS commands for more information.
         else:
             waitc = _WAIT_SCREEN
 
-        r2d2rv = self.__r2d2(self.stdscr, waitc, timeout)
+        r2d2rv = self.__run_r2d2(self.stdscr, waitc, timeout)
         if r2d2rv in (0, 1, 12):  # if timeout, satisfied, seslost
 
             if ((self.rewrite or
@@ -1413,16 +1420,14 @@ HELP and HELP KEYS commands for more information.
            sessions alive while at
            the command prompt.
         """
-        if self.__thread:
+        if self.__future:
             return  # already running
 
         if not ati.ati.sessions:
             return  # no sessions
 
         _, loop = ati.ati.get_asyncio_event_loop()
-        thread = threading.Thread(target=loop.run_forever)
-        self.__thread = thread
-        thread.start()
+        self.__future = self.__threadpool.submit(loop.run_forever)
 
     def __bg_wait_end(self):
         """Ensure the background
@@ -1434,14 +1439,13 @@ HELP and HELP KEYS commands for more information.
            so that application
            can shut down.
         """
-        thread = self.__thread
-        if not thread:
+        if not (future := self.__future):
             return  # not running
 
         _, loop = ati.ati.get_asyncio_event_loop()
         loop.call_soon_threadsafe(loop.stop)
-        thread.join()
-        self.__thread = None
+        future.result()
+        self.__future = None
 
     def __clean_range(self, start, end):
         """See __dirty_range.
@@ -1911,8 +1915,7 @@ HELP and HELP KEYS commands for more information.
                 self.stdscr = curses.initscr()
                 Zti._stdscr = self.stdscr
 
-                curses.cbreak()
-                curses.noecho()
+                curses.cbreak_raw()
                 curses.def_prog_mode()
                 curses.endwin()
 
@@ -1955,8 +1958,6 @@ HELP and HELP KEYS commands for more information.
         signals = self.__signals
         if signals:
             new_hand = self.__signal_handler
-            event, loop = ati.ati.get_asyncio_event_loop()
-            set_handler = loop.add_signal_handler
             getsignal = signal.getsignal
             special_handlers = set(signal.Handlers)
             for signum in signals:
@@ -1965,11 +1966,17 @@ HELP and HELP KEYS commands for more information.
                     _logger.warning("%r -> %r", signum, old_hand)
 
                 else:
-                    set_handler(signum, new_hand, signum, event.set)
-                    self.__handling.add(signum)
+                    self.__handling[signum] = old_hand
+                    signal.signal(signum, new_hand)
 
         self.rewrite = True
         self.__tty_mode = 1
+
+    def __run_r2d2(self, win, waitc, timeout):
+        future = self.__threadpool.submit(
+            self.__r2d2, win, waitc, timeout
+        )
+        return future.result()
 
     def __r2d2(self, win, waitc, timeout):
         """Read and Display 3270 Terminal
@@ -2944,9 +2951,8 @@ HELP and HELP KEYS commands for more information.
             self.__stdin_selected = False
             loop.remove_reader(self.__stdin)
 
-        while len(self.__handling) > 0:
-            signum = self.__handling.pop()
-            loop.remove_signal_handler(signum)
+        while self.__handling:
+            signal.signal(*self.__handling.popitem())
 
         curses.endwin()
         if self.__shell_mousemask is not None:
@@ -2961,14 +2967,16 @@ HELP and HELP KEYS commands for more information.
         # following flush.
         self.__stdout.flush()
 
-    def __signal_handler(self, signum, callback):
+    def __signal_handler(self, signum, frame):
         if signum == signal.SIGTSTP:
             self.__shell_mode()
             os.kill(os.getpid(), signal.SIGSTOP)
             self.__prog_mode()
 
         self.__winch = True
-        callback()
+        event, loop = ati.ati.get_asyncio_event_loop()
+        if loop and event:
+            loop.call_soon_threadsafe(event.set)
 
     def __tty_read(self, win, timeout, refresh=None):
         """Read from tty
@@ -3054,8 +3062,6 @@ HELP and HELP KEYS commands for more information.
         When attr is not specified, text is written
         with the current attributes.
         """
-        self.__prog_mode()
-
         if self.__cur_curs_vis != 0:
             self.stdscr.leaveok(True)
             curses.curs_set(0)
@@ -3550,9 +3556,9 @@ def create():
         return None
 
     try:
-        curses.cbreak()
+        curses.cbreak_raw()
     except curses.error:
-        _logger.exception("cbreak error")
+        _logger.exception("cbreak_raw error")
         return None
     finally:
         curses.endwin()
