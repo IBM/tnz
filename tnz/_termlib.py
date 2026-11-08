@@ -1,9 +1,9 @@
 """tnz terminal library
 
-Provided curses function for tnz.
+Terminal library for tnz. Similar to curses.
 
 USAGE
-    from ._termlib import Term as curses
+    from ._termlib import Term as termlib
 
 REFERENCES:
     https://xtermjs.org/docs/api/vtfeatures
@@ -68,7 +68,7 @@ def _log_errors(func):
     return wrapper
 
 
-def _curses_init(cls):
+def _termlib_init(cls):
     class _Key(IntEnum):
         KEY_ENTER = 256
         KEY_BACKSPACE = auto()
@@ -116,9 +116,9 @@ def _curses_init(cls):
     return cls
 
 
-@_curses_init
+@_termlib_init
 class Term():
-    """Like curses, but only function needed by tnz.
+    """Terminal library providing function needed by tnz.
 
     Use initscr() to create an instance.
     """
@@ -1220,7 +1220,7 @@ class Term():
 
     @classmethod
     def initscr(cls):
-        """Initialize curses. Returns curses/window/stdscr instance.
+        """Initialize termlib. Returns termlib/window/stdscr instance.
         """
         _logger.debug("initscr()")
         stdscr = cls.__stdscr
@@ -1288,9 +1288,9 @@ class Term():
     def isendwin(cls):
         """
         Return True if endwin() has been called (that is,
-        the curses library has been deinitialized).
+        the termlib library has been deinitialized).
 
-        curses.isendwin()
+        termlib.isendwin()
         """
         cls.__initscr_required()
         return not cls.__alt_screen
