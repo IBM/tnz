@@ -915,7 +915,7 @@ class Zti(cmd.Cmd):
         if not tns:
             return
 
-        faddr, _ = tns.next_field(0, offset=0)
+        faddr = tns.next_field(0, offset=0)[0]
         if faddr < 0:
             faddr = 0
             sa0 = 0
@@ -1050,7 +1050,7 @@ class Zti(cmd.Cmd):
         addr1 = (epos) % buffer_size  # next address
         self.__write_blanks(tns, addr, addr1)
         self.__clean_range(addr, epos)
-        eaddr, _ = tns.next_field(addr)
+        eaddr = tns.next_field(addr)[0]
         if eaddr == addr1:
             return  # no data in field
 
@@ -1251,11 +1251,11 @@ HELP KEYS commands for more information.
 
         self.__prog_mode()
 
-        maxy, _ = self.stdscr.getmaxyx()
+        maxy = self.stdscr.getmaxyx()[0]
 
-        xpos1, _ = self.twin_beg
-        xpos2, _ = self.twin_end
-        xpos3, _ = self.twin_loc
+        xpos1 = self.twin_beg[0]
+        xpos2 = self.twin_end[0]
+        xpos3 = self.twin_loc[0]
 
         if len(text) > xpos2-xpos1:
             text = text[:xpos2-xpos1]
@@ -1365,7 +1365,7 @@ HELP and HELP KEYS commands for more information.
         if not force:
             self.rewrite_cursor = True  # assume needed
 
-        faddr, _ = tns.field(daddr)
+        faddr = tns.field(daddr)[0]
         if faddr < 0:
             faddr = 0
 
@@ -1384,7 +1384,7 @@ HELP and HELP KEYS commands for more information.
         if self.rewrite or dlen <= 0:
             return
 
-        faddr1, _ = tns.field(daddr)
+        faddr1 = tns.field(daddr)[0]
         if faddr1 < 0:
             return
 
@@ -1394,12 +1394,12 @@ HELP and HELP KEYS commands for more information.
 
         if faddr1 != daddr:  # if first char not wiping out field
             caddr2 = (daddr+dlen-1) % buffer_size
-            faddr2, _ = tns.field(caddr2)
+            faddr2 = tns.field(caddr2)[0]
             if faddr1 == faddr2:  # if no fields being wiped
                 return
 
         saddr = (daddr+dlen) % buffer_size
-        eaddr, _ = tns.next_field(saddr, daddr)
+        eaddr = tns.next_field(saddr, daddr)[0]
         if eaddr < 0:
             self.__dirty_range(saddr, daddr, tns=tns)
         else:
@@ -1419,7 +1419,7 @@ HELP and HELP KEYS commands for more information.
         if not ati.ati.sessions:
             return  # no sessions
 
-        _, loop = ati.ati.get_asyncio_event_loop()
+        loop = ati.ati.get_asyncio_event_loop()[1]
         thread = threading.Thread(target=loop.run_forever)
         self.__thread = thread
         thread.start()
@@ -1438,7 +1438,7 @@ HELP and HELP KEYS commands for more information.
         if not thread:
             return  # not running
 
-        _, loop = ati.ati.get_asyncio_event_loop()
+        loop = ati.ati.get_asyncio_event_loop()[1]
         loop.call_soon_threadsafe(loop.stop)
         thread.join()
         self.__thread = None
@@ -1763,7 +1763,7 @@ HELP and HELP KEYS commands for more information.
                 buffer_size = tns.buffer_size
                 for sidx, eidx in dirty_ranges:
                     eidx %= buffer_size
-                    faddr, _ = tns.field(sidx)
+                    faddr = tns.field(sidx)[0]
                     for saddr, eaddr in tns.group_addrs(sidx, eidx):
                         self.__write_group(tns, faddr, saddr, eaddr)
 
@@ -1771,7 +1771,7 @@ HELP and HELP KEYS commands for more information.
 
         if rewrite:
             _logger.debug("before drawing terminal")
-            faddr, _ = tns.next_field(tns.buffer_size-2)
+            faddr = tns.next_field(tns.buffer_size-2)[0]
             if faddr < 0:  # if no fields
                 self.write(tns, 0, 0, 0)
             else:
@@ -2940,7 +2940,7 @@ HELP and HELP KEYS commands for more information.
         self.__stdout.write("\x1b[?2004l")  # bracketed paste OFF
         self.__stdout.flush()
 
-        _, loop = ati.ati.get_asyncio_event_loop()
+        loop = ati.ati.get_asyncio_event_loop()[1]
         if self.__stdin_selected:
             self.__stdin_selected = False
             loop.remove_reader(self.__stdin)

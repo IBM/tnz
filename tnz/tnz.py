@@ -516,7 +516,7 @@ class Tnz:
         """
         next_data = self.next_data
         if saddr is None:
-            faddr, _ = self.next_field(0, eaddr, offset=-1)
+            faddr = self.next_field(0, eaddr, offset=-1)[0]
             if faddr < 0:  # no fields
                 faddr = 0
 
@@ -715,7 +715,7 @@ class Tnz:
         Return True or False to indicate if the address is
         selector-pen detectable
         """
-        _, fattr = self.field(address)
+        fattr = self.field(address)[1]
         return self.is_detectable_attr(fattr)
 
     def is_protected(self, address):
@@ -921,7 +921,7 @@ class Tnz:
             addr3 = addr0
 
         else:  # else faddr is field address
-            addr3, _ = self.next_field(addr0)
+            addr3 = self.next_field(addr0)[0]
             self.plane_fa[faddr] = bit6(fattr | 1)  # Set MDT
 
         self.__log_debug("  delete %d %d %d", faddr, addr0, addr3)
@@ -977,7 +977,7 @@ class Tnz:
 
         buffer_size = self.buffer_size
         faddr1 = (faddr+1) % buffer_size
-        eaddr, _ = self.next_field(caddr)
+        eaddr = self.next_field(caddr)[0]
         if faddr1 == eaddr:  # 0-length field
             return
 
@@ -1008,7 +1008,7 @@ class Tnz:
         if faddr < 0:
             addr2 = addr0
         else:
-            addr2, _ = self.next_field(addr0)
+            addr2 = self.next_field(addr0)[0]
             fattr = bit6(fattr | 1)  # Set MDT (Modified Data Tag)
             self.plane_fa[faddr] = fattr
 
@@ -1062,7 +1062,7 @@ class Tnz:
             addr2 = addr0
             datalen = buffer_size
         else:
-            addr2, _ = self.next_field(addr0)
+            addr2 = self.next_field(addr0)[0]
             if addr0 < addr2:
                 datalen = addr2 - addr0
             else:
@@ -1952,14 +1952,14 @@ class Tnz:
     def word_at(self, address):
         """Return the word at the input address.
         """
-        fa1, _ = self.field(address)
+        fa1 = self.field(address)[0]
         if fa1 == address:
             return ""
 
         if fa1 > 0:
             buffer_size = self.buffer_size
             fa1 = (fa1+1) % buffer_size
-            fa2, _ = self.next_field(fa1)
+            fa2 = self.next_field(fa1)[0]
             if fa1 < address:
                 pos = address - fa1
             else:
@@ -3028,7 +3028,7 @@ class Tnz:
 
         oldadd = self.bufadd
         if not self.plane_fa[oldadd] and self.__pt_erase:
-            addr0, _ = self.next_field(oldadd, 0)
+            addr0 = self.next_field(oldadd, 0)[0]
             if addr0 > 0:
                 self.__pt_erase = False
             elif addr0 < 0:
@@ -3898,7 +3898,7 @@ class Tnz:
                 self.__log_debug("Rejected - Field protected @ %r", fa1)
                 return chars_keyed  # on protected field
 
-            fa2, _ = next_field(ca1, cax)
+            fa2 = next_field(ca1, cax)[0]
             if fa2 < 0:
                 fa2 = cax
 
@@ -4501,7 +4501,7 @@ class Tnz:
         """
         plane_fa = self.plane_fa
         if not plane_fa[saddr]:  # if start on character
-            saddr, _ = self.next_field(saddr, eaddr)
+            saddr = self.next_field(saddr, eaddr)[0]
             if saddr < 0 or saddr == eaddr:
                 return 0
 
