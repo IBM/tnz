@@ -516,10 +516,7 @@ class Tnz:
         """
         next_data = self.next_data
         if saddr is None:
-            faddr = self.next_field(0, eaddr, offset=-1)[0]
-            if faddr < 0:  # no fields
-                faddr = 0
-
+            faddr = max(0, self.next_field(0, eaddr, offset=-1)[0])
             start, end = next_data(faddr, eaddr)
             if eaddr is None:
                 eaddr = start
@@ -715,8 +712,7 @@ class Tnz:
         Return True or False to indicate if the address is
         selector-pen detectable
         """
-        fattr = self.field(address)[1]
-        return self.is_detectable_attr(fattr)
+        return self.is_detectable_attr(self.field(address)[1])
 
     def is_protected(self, address):
         """

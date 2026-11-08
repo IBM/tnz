@@ -1361,10 +1361,7 @@ HELP and HELP KEYS commands for more information.
         if not force:
             self.rewrite_cursor = True  # assume needed
 
-        faddr = tns.field(daddr)[0]
-        if faddr < 0:
-            faddr = 0
-
+        faddr = max(0, tns.field(daddr)[0])
         caddr2 = (daddr + dlen) % tns.buffer_size
         return self.write(tns, faddr, daddr, caddr2)
 
