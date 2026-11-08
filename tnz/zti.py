@@ -281,10 +281,6 @@ class Zti(cmd.Cmd):
 
     def do_autosize(self, arg):
         # ready for testing?
-        if getattr(termlib, "prog_maxyx", termlib) is termlib:
-            print(">>> AUTOSIZE not available.")
-            return
-
         autosize = not self.autosize
         self.autosize = autosize
         if not autosize:
@@ -1482,10 +1478,6 @@ HELP and HELP KEYS commands for more information.
         elif self.__has_color is False:
             return
 
-        elif not termlib.has_colors():
-            self.__has_color = False
-            return
-
         try:
             self.__set_colors()
             self.__has_color = True
@@ -1891,23 +1883,6 @@ HELP and HELP KEYS commands for more information.
             self.__stdin_selected = True
 
         if not self.stdscr:
-            # Initialize termlib
-
-            # The ESC key is important since it
-            # allows the user to drop back to the
-            # command line. The termlib default delay
-            # to wait to see if ESC (x1b) is the
-            # start of an escape sequence or just
-            # an escape key feels too long. Set
-            # a more reasonable value. Note that
-            # this must be done BEFORE termlib.initscr
-            # (or wrapper) is called. And the
-            # following line of code will only set
-            # it if it is not already set in the
-            # environment.
-
-            os.environ.setdefault("ESCDELAY", "25")
-
             try:
                 self.stdscr = termlib.initscr()
                 Zti._stdscr = self.stdscr
@@ -1918,7 +1893,6 @@ HELP and HELP KEYS commands for more information.
                 termlib.endwin()
 
                 self.stdscr.keypad(True)
-                self.stdscr.notimeout(0)  # faster ESC?
 
                 # TODO only set up mouse if NOT "show" mode?
                 mousemask = (termlib.BUTTON1_CLICKED |
@@ -2149,7 +2123,6 @@ HELP and HELP KEYS commands for more information.
                     (columns, lines) = os.get_terminal_size()
                     if (maxy != lines) or (maxx != columns):
                         win.clear()
-                        win.noutrefresh()
                         win.resize(lines, columns)
                         self.rewrite = True
 
@@ -2171,7 +2144,6 @@ HELP and HELP KEYS commands for more information.
                         termlib.resize_term(lines, columns)
                         win.resize(lines, columns)
                         win.erase()
-                        win.noutrefresh()
 
                 elif show:
 
@@ -2224,7 +2196,6 @@ HELP and HELP KEYS commands for more information.
                         # assume Ctrl+L is for size change
                         win.resize(lines, columns)
                         win.erase()
-                        win.noutrefresh()
 
                     aid_callable = tns.clear
 
@@ -2773,7 +2744,6 @@ HELP and HELP KEYS commands for more information.
 
     def __set_colors(self):
         termlib.start_color()
-        termlib.use_default_colors()
         colors = termlib.COLORS
         color_pairs = termlib.COLOR_PAIRS
         self.colors = colors
@@ -3112,16 +3082,6 @@ HELP and HELP KEYS commands for more information.
             if width > (cols - xpos):  # tail of string too long
                 epos = spos + (cols - xpos)  # shorten
 
-            insch = None
-            if ypos >= (rows - 1) and (xpos + width) >= (cols - 1):
-                # termlib does not like use of bottom right
-                if epos is None:
-                    epos = len(instr) - 1
-                else:
-                    epos -= 1
-
-                insch = instr[epos:epos+1]  # bottom-right char
-
             if spos == 0 and (epos is None or epos == len(instr)):
                 if attr is None:
                     self.stdscr.addstr(ypos, xpos, instr)
@@ -3138,13 +3098,6 @@ HELP and HELP KEYS commands for more information.
                 self.stdscr.addstr(ypos, xpos, instr[spos:epos])
             else:
                 self.stdscr.addstr(ypos, xpos, instr[spos:epos], attr)
-
-            if insch:  # if skipped bottom-right char
-                # use insch to fill in bottom-right char
-                if attr is None:
-                    self.stdscr.insch(insch)
-                else:
-                    self.stdscr.insch(insch, attr)
 
     def __update_prompt(self):
         """Set prompt according to SESSION.
