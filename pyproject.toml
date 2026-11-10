@@ -38,7 +38,14 @@ source = "https://github.com/IBM/tnz"
 packages = ["tnz"]
 
 [tool.setuptools.package-data]
-tnz = ["logging.json"]
+tnz = ["logging.json", "../share/themes/*.json"]
+
+"share/tnz/themes" = [
+    "share/themes/theme-default.json",
+    "share/themes/theme-gruvbox.json",
+    "share/themes/theme-solarized-dark.json",
+    "share/themes/theme-synthwave84.json"
+]
 
 [tool.versioningit.format]
 distance = "{next_version}-dev.{distance}+{vcs}{rev}"
@@ -50,3 +57,4 @@ method = "smallest"
 
 [tool.versioningit.write]
 file = "tnz/_version.py"
+ 
