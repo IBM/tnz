@@ -18,7 +18,6 @@ Copyright 2021, 2026 IBM Inc. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import asyncio
 import atexit
 from enum import IntEnum, auto
 from functools import wraps
