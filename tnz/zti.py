@@ -33,7 +33,7 @@ Environment variables used:
     ZTI_TITLE
     _BPX_TERMPATH (see _termlib.py)
 
-Copyright 2021, 2025 IBM Inc. All Rights Reserved.
+Copyright 2021, 2026 IBM Inc. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 """
@@ -66,7 +66,7 @@ import threading
 import time
 import traceback
 
-from ._termlib import Term as curses
+from ._termlib import Term as termlib
 from . import ati
 from . import rexx
 from . import tnz
@@ -281,14 +281,10 @@ class Zti(cmd.Cmd):
 
     def do_autosize(self, arg):
         # ready for testing?
-        if getattr(curses, "prog_maxyx", curses) is curses:
-            print(">>> AUTOSIZE not available.")
-            return
-
         autosize = not self.autosize
         self.autosize = autosize
         if not autosize:
-            curses.prog_maxyx = None
+            termlib.prog_maxyx = None
 
         print(f"autosize = {self.autosize}")
 
@@ -915,7 +911,7 @@ class Zti(cmd.Cmd):
         if not tns:
             return
 
-        faddr, _ = tns.next_field(0, offset=0)
+        faddr = tns.next_field(0, offset=0)[0]
         if faddr < 0:
             faddr = 0
             sa0 = 0
@@ -1050,7 +1046,7 @@ class Zti(cmd.Cmd):
         addr1 = (epos) % buffer_size  # next address
         self.__write_blanks(tns, addr, addr1)
         self.__clean_range(addr, epos)
-        eaddr, _ = tns.next_field(addr)
+        eaddr = tns.next_field(addr)[0]
         if eaddr == addr1:
             return  # no data in field
 
@@ -1251,11 +1247,11 @@ HELP KEYS commands for more information.
 
         self.__prog_mode()
 
-        maxy, _ = self.stdscr.getmaxyx()
+        maxy = self.stdscr.getmaxyx()[0]
 
-        xpos1, _ = self.twin_beg
-        xpos2, _ = self.twin_end
-        xpos3, _ = self.twin_loc
+        xpos1 = self.twin_beg[0]
+        xpos2 = self.twin_end[0]
+        xpos3 = self.twin_loc[0]
 
         if len(text) > xpos2-xpos1:
             text = text[:xpos2-xpos1]
@@ -1365,10 +1361,7 @@ HELP and HELP KEYS commands for more information.
         if not force:
             self.rewrite_cursor = True  # assume needed
 
-        faddr, _ = tns.field(daddr)
-        if faddr < 0:
-            faddr = 0
-
+        faddr = max(0, tns.field(daddr)[0])
         caddr2 = (daddr + dlen) % tns.buffer_size
         return self.write(tns, faddr, daddr, caddr2)
 
@@ -1384,7 +1377,7 @@ HELP and HELP KEYS commands for more information.
         if self.rewrite or dlen <= 0:
             return
 
-        faddr1, _ = tns.field(daddr)
+        faddr1 = tns.field(daddr)[0]
         if faddr1 < 0:
             return
 
@@ -1394,12 +1387,12 @@ HELP and HELP KEYS commands for more information.
 
         if faddr1 != daddr:  # if first char not wiping out field
             caddr2 = (daddr+dlen-1) % buffer_size
-            faddr2, _ = tns.field(caddr2)
+            faddr2 = tns.field(caddr2)[0]
             if faddr1 == faddr2:  # if no fields being wiped
                 return
 
         saddr = (daddr+dlen) % buffer_size
-        eaddr, _ = tns.next_field(saddr, daddr)
+        eaddr = tns.next_field(saddr, daddr)[0]
         if eaddr < 0:
             self.__dirty_range(saddr, daddr, tns=tns)
         else:
@@ -1419,7 +1412,7 @@ HELP and HELP KEYS commands for more information.
         if not ati.ati.sessions:
             return  # no sessions
 
-        _, loop = ati.ati.get_asyncio_event_loop()
+        loop = ati.ati.get_asyncio_event_loop()[1]
         thread = threading.Thread(target=loop.run_forever)
         self.__thread = thread
         thread.start()
@@ -1438,7 +1431,7 @@ HELP and HELP KEYS commands for more information.
         if not thread:
             return  # not running
 
-        _, loop = ati.ati.get_asyncio_event_loop()
+        loop = ati.ati.get_asyncio_event_loop()[1]
         loop.call_soon_threadsafe(loop.stop)
         thread.join()
         self.__thread = None
@@ -1449,34 +1442,37 @@ HELP and HELP KEYS commands for more information.
         if start >= end:
             raise ValueError(f"{start} >= {end}")
 
-        for i, (sidx, eidx) in enumerate(self.__dirty_ranges):
-            if start == sidx and end == eidx:
-                self.__dirty_ranges.pop(i)
-                return
+        # The list is kept sorted and non-overlapping.
+        # Cleaned ranges are usually at the end, so search backward.
+        # Entries ranges[lo:hi] overlap [start, end).
+        ranges = self.__dirty_ranges
+        lo = hi = len(ranges)
+        while lo and ranges[lo-1][1] > start:  # not before
+            lo -= 1
+            if ranges[lo][0] >= end:  # after, leave it alone
+                hi = lo
 
-            if start <= sidx and end >= eidx:
-                self.__dirty_ranges.pop(i)
+        if lo == hi:  # nothing overlaps
+            return
 
-            elif start <= sidx and end > sidx:
-                self.__dirty_ranges[i] = (end, eidx)
+        # Only the first overlapped entry can leave a left remainder
+        # and only the last can leave a right remainder.
+        remains = []
+        sidx = ranges[lo][0]
+        if sidx < start:  # left remainder
+            remains.append((sidx, start))
 
-            elif start < eidx and end >= eidx:
-                self.__dirty_ranges[i] = (sidx, start)
+        eidx = ranges[hi-1][1]
+        if end < eidx:  # right remainder
+            remains.append((end, eidx))
 
-            elif start > sidx and end < eidx:
-                self.__dirty_ranges[i] = (sidx, start)
-                self.__dirty_ranges.append((end, eidx))
-                return
+        ranges[lo:hi] = remains
 
     def __color_setup(self):
         if self.__has_color is True:
             pass
 
         elif self.__has_color is False:
-            return
-
-        elif not curses.has_colors():
-            self.__has_color = False
             return
 
         try:
@@ -1522,27 +1518,21 @@ HELP and HELP KEYS commands for more information.
             self.__dirty_range(start, tns.buffer_size)
             return
 
-        start1 = start
-        end1 = end
-        for i, (sidx, eidx) in enumerate(self.__dirty_ranges):
-            if start >= sidx and end <= eidx:
-                return
+        # The list is kept sorted, non-overlapping, and non-adjacent.
+        # Merge every entry that overlaps or touches [start, end).
+        # New ranges usually belong at the end, so search backward.
+        ranges = self.__dirty_ranges
+        lo = hi = len(ranges)
+        while lo and ranges[lo-1][1] >= start:  # not before
+            lo -= 1
+            sidx, eidx = ranges[lo]
+            if sidx > end:  # after, leave it alone
+                hi = lo
+            else:  # overlaps or touches, merge it
+                start = min(start, sidx)
+                end = max(end, eidx)
 
-            if start <= sidx and end >= eidx:
-                self.__dirty_ranges.pop(i)
-
-            elif start <= sidx and end >= sidx:
-                self.__dirty_ranges.pop(i)
-                end1 = eidx
-
-            elif start <= eidx and end >= eidx:
-                self.__dirty_ranges.pop(i)
-                start1 = sidx
-
-        if start1 != start or end1 != end:
-            return self.__dirty_range(start1, end1)
-
-        self.__dirty_ranges.append((start, end))
+        ranges[lo:hi] = [(start, end)]
 
     def __display(self, window, showcursor):
         _logger.debug("begin __display")
@@ -1593,11 +1583,11 @@ HELP and HELP KEYS commands for more information.
                 srows, scols = sr4, sc4
                 rat = rat4
 
-            curses.prog_maxyx = srows, scols
+            termlib.prog_maxyx = srows, scols
 
         if rewrite:
             window.clear()
-            acs_hline = curses.ACS_HLINE
+            acs_hline = termlib.ACS_HLINE
 
         rows, cols = window.getmaxyx()
 
@@ -1653,13 +1643,13 @@ HELP and HELP KEYS commands for more information.
                         if has_color:
                             attr = self.cv2attr[(247, 0)]  # white
                         else:
-                            attr = curses.A_BOLD
+                            attr = termlib.A_BOLD
                     else:
                         text = rexx.left(" " + ses, 9)
                         if has_color:
                             attr = self.cv2attr[(244, 0)]  # green
                         else:
-                            attr = curses.A_NORMAL
+                            attr = termlib.A_NORMAL
 
                     self.__tty_write(sesy, sesx, text, attr)
 
@@ -1694,7 +1684,7 @@ HELP and HELP KEYS commands for more information.
                     statlen += 2
 
                 if rewrite or rewrite_status:
-                    window.attron(curses.A_REVERSE)
+                    window.attron(termlib.A_REVERSE)
                     bytecnt = "?"
                     download = tns.download()
                     if hasattr(download, "bytecnt"):
@@ -1703,7 +1693,7 @@ HELP and HELP KEYS commands for more information.
                     msg = f"File transfer in progress ({bytecnt} bytes)"
                     msg = rexx.left(msg, statlen)
                     self.__tty_write(ypos - 2, xpos, msg)
-                    window.attroff(curses.A_REVERSE)
+                    window.attroff(termlib.A_REVERSE)
 
                 tsx = xpos + statlen
             else:
@@ -1730,11 +1720,11 @@ HELP and HELP KEYS commands for more information.
                 tsx += 10 + rlen + 1 + clen + 3
                 if rewrite or rewrite_status or rewrite_keylock:
                     if "1" == keylock:
-                        window.attron(curses.A_REVERSE)
+                        window.attron(termlib.A_REVERSE)
                     self.__tty_write(ypos-2, tsx,
                                      "KeyLock= "+keylock)
                     if "1" == keylock:
-                        window.attroff(curses.A_REVERSE)
+                        window.attroff(termlib.A_REVERSE)
 
                 tsx += 10
 
@@ -1762,7 +1752,7 @@ HELP and HELP KEYS commands for more information.
                 buffer_size = tns.buffer_size
                 for sidx, eidx in dirty_ranges:
                     eidx %= buffer_size
-                    faddr, _ = tns.field(sidx)
+                    faddr = tns.field(sidx)[0]
                     for saddr, eaddr in tns.group_addrs(sidx, eidx):
                         self.__write_group(tns, faddr, saddr, eaddr)
 
@@ -1770,7 +1760,7 @@ HELP and HELP KEYS commands for more information.
 
         if rewrite:
             _logger.debug("before drawing terminal")
-            faddr, _ = tns.next_field(tns.buffer_size-2)
+            faddr = tns.next_field(tns.buffer_size-2)[0]
             if faddr < 0:  # if no fields
                 self.write(tns, 0, 0, 0)
             else:
@@ -1856,8 +1846,8 @@ HELP and HELP KEYS commands for more information.
             tns.key_data(data, zti=self)
 
         except UnicodeEncodeError:
-            curses.flash()
-            curses.beep()
+            termlib.flash()
+            termlib.beep()
             _logger.exception("cannot encode")
 
     def __paste_data(self, tns, data):
@@ -1865,14 +1855,14 @@ HELP and HELP KEYS commands for more information.
             tns.paste_data(data, zti=self)
 
         except UnicodeEncodeError:
-            curses.flash()
-            curses.beep()
+            termlib.flash()
+            termlib.beep()
             _logger.exception("cannot encode")
 
     def __prog_mode(self):
         """Set the TTY to prog mode.
 
-        Initialize curses if necessary.
+        Initialize termlib if necessary.
         """
         if self.__tty_mode == 1:  # prog
             return
@@ -1890,39 +1880,21 @@ HELP and HELP KEYS commands for more information.
             self.__stdin_selected = True
 
         if not self.stdscr:
-            # Initialize curses
-
-            # The ESC key is important since it
-            # allows the user to drop back to the
-            # command line. The curses default delay
-            # to wait to see if ESC (x1b) is the
-            # start of an escape sequence or just
-            # an escape key feels too long. Set
-            # a more reasonable value. Note that
-            # this must be done BEFORE curses.initscr
-            # (or wrapper) is called. And the
-            # following line of code will only set
-            # it if it is not already set in the
-            # environment.
-
-            os.environ.setdefault("ESCDELAY", "25")
-
             try:
-                self.stdscr = curses.initscr()
+                self.stdscr = termlib.initscr()
                 Zti._stdscr = self.stdscr
 
-                curses.cbreak()
-                curses.noecho()
-                curses.def_prog_mode()
-                curses.endwin()
+                termlib.cbreak()
+                termlib.noecho()
+                termlib.def_prog_mode()
+                termlib.endwin()
 
                 self.stdscr.keypad(True)
-                self.stdscr.notimeout(0)  # faster ESC?
 
                 # TODO only set up mouse if NOT "show" mode?
-                mousemask = (curses.BUTTON1_CLICKED |
-                             curses.BUTTON1_DOUBLE_CLICKED)
-                masks = curses.mousemask(mousemask)
+                mousemask = (termlib.BUTTON1_CLICKED |
+                             termlib.BUTTON1_DOUBLE_CLICKED)
+                masks = termlib.mousemask(mousemask)
                 if masks != 0:  # if successful
                     if self.__shell_mousemask is None:
                         self.__shell_mousemask = masks[1]
@@ -1931,7 +1903,7 @@ HELP and HELP KEYS commands for more information.
 
             except Exception:
                 if self.stdscr:
-                    curses.endwin()
+                    termlib.endwin()
                     self.stdscr = None
 
                 raise
@@ -1939,16 +1911,16 @@ HELP and HELP KEYS commands for more information.
             self.stdscr.clear()  # avoid showing old screen
             self.stdscr.refresh(_win_callback=self.__set_event_fn())
             # TODO only set up mouse if NOT "show" mode?
-            mousemask = (curses.BUTTON1_CLICKED |
-                         curses.BUTTON1_DOUBLE_CLICKED)
-            masks = curses.mousemask(mousemask)
+            mousemask = (termlib.BUTTON1_CLICKED |
+                         termlib.BUTTON1_DOUBLE_CLICKED)
+            masks = termlib.mousemask(mousemask)
             if masks != 0:  # if successful
                 if self.__shell_mousemask is None:
                     self.__shell_mousemask = masks[1]
 
             self.__color_setup()
 
-        curses.flushinp()
+        termlib.flushinp()
         self.__stdout.write("\x1b[?2004h")  # bracketed paste ON
         self.__stdout.flush()
 
@@ -2148,14 +2120,13 @@ HELP and HELP KEYS commands for more information.
                     (columns, lines) = os.get_terminal_size()
                     if (maxy != lines) or (maxx != columns):
                         win.clear()
-                        win.noutrefresh()
                         win.resize(lines, columns)
                         self.rewrite = True
 
                 elif cstr == "\x1b" or cstr == "KEY_ESC":  # ESC
                     _logger.debug("keyed Esc")
                     if keylock_aidbuf:  # if not all keys were processed
-                        curses.beep()  # signal user something happened
+                        termlib.beep()  # signal user something happened
 
                     return cstr
 
@@ -2167,14 +2138,13 @@ HELP and HELP KEYS commands for more information.
                     columns, lines = os.get_terminal_size()
                     (maxy, maxx) = win.getmaxyx()
                     if (maxy != lines) or (maxx != columns):
-                        curses.resize_term(lines, columns)
+                        termlib.resize_term(lines, columns)
                         win.resize(lines, columns)
                         win.erase()
-                        win.noutrefresh()
 
                 elif show:
 
-                    curses.flash()
+                    termlib.flash()
 
                 elif (keylock_aidbuf and
                       not tns.pwait and not tns.system_lock_wait):
@@ -2188,8 +2158,8 @@ HELP and HELP KEYS commands for more information.
                         if paste:
                             if tns.pwait or tns.system_lock_wait:
                                 keylock_aidbuf.clear()  # cancel, paste
-                                curses.flash()
-                                curses.beep()
+                                termlib.flash()
+                                termlib.beep()
                             else:
                                 self.__paste_data(tns, paste)
 
@@ -2201,8 +2171,8 @@ HELP and HELP KEYS commands for more information.
                     if paste:
                         if tns.pwait or tns.system_lock_wait:
                             keylock_aidbuf.clear()  # cancel, paste
-                            curses.flash()
-                            curses.beep()
+                            termlib.flash()
+                            termlib.beep()
                         else:
                             self.__paste_data(tns, paste)
 
@@ -2223,7 +2193,6 @@ HELP and HELP KEYS commands for more information.
                         # assume Ctrl+L is for size change
                         win.resize(lines, columns)
                         win.erase()
-                        win.noutrefresh()
 
                     aid_callable = tns.clear
 
@@ -2232,7 +2201,7 @@ HELP and HELP KEYS commands for more information.
                     keylock = ati.value("KEYLOCK", trace=False)
                     if keylock == "1":
                         keylock_aidbuf.clear()  # cancel, key data
-                        curses.flash()
+                        termlib.flash()
                     else:
                         if insmode:
                             tns.key_ins_data(cstr, zti=self)
@@ -2300,8 +2269,8 @@ HELP and HELP KEYS commands for more information.
 
                     if tns.pwait or tns.system_lock_wait:
                         keylock_aidbuf.clear()  # cancel, Alt+letter
-                        curses.flash()
-                        curses.beep()
+                        termlib.flash()
+                        termlib.beep()
                     else:
                         tns.set_cursor_position(1, altc)
                         tns.enter()
@@ -2516,7 +2485,7 @@ HELP and HELP KEYS commands for more information.
                     _logger.debug("keyed Alt+PgUp")
                     if keylock_aidbuf:  # if not all keys were processed
                         keylock_aidbuf.clear()  # cancel, Alt+PgUp
-                        curses.beep()  # signal user something happened
+                        termlib.beep()  # signal user something happened
 
                     session = ati.ati.session
                     sessions = ati.ati.sessions
@@ -2542,7 +2511,7 @@ HELP and HELP KEYS commands for more information.
                     _logger.debug("keyed Alt+PgDn")
                     if keylock_aidbuf:  # if not all keys were processed
                         keylock_aidbuf.clear()  # cancel, Alt+PgDn
-                        curses.beep()  # signal user something happened
+                        termlib.beep()  # signal user something happened
 
                     session = ati.ati.session
                     sessions = ati.ati.sessions
@@ -2586,13 +2555,13 @@ HELP and HELP KEYS commands for more information.
                     elif wstr.startswith("https://"):
                         webbrowser.open_new_tab(wstr)
                     else:
-                        curses.flash()
-                        curses.beep()
+                        termlib.flash()
+                        termlib.beep()
 
                 elif cstr == "KEY_MOUSE":
                     mouserr = False
                     try:
-                        mid, mpx, mpy, mpz, mbstate = curses.getmouse()
+                        mid, mpx, mpy, mpz, mbstate = termlib.getmouse()
                     except Exception:
                         mouserr = True
 
@@ -2607,11 +2576,11 @@ HELP and HELP KEYS commands for more information.
                         ypos += self.twin_beg[1]
 
                         if ((mbstate &
-                             curses.BUTTON1_DOUBLE_CLICKED) != 0):
+                             termlib.BUTTON1_DOUBLE_CLICKED) != 0):
                             if tns.pwait or tns.system_lock_wait:
                                 keylock_aidbuf.clear()  # cancel, click
-                                curses.flash()
-                                curses.beep()
+                                termlib.flash()
+                                termlib.beep()
                             else:
                                 tns.set_cursor_position(ypos+1, xpos+1)
                                 tns.enter()
@@ -2619,7 +2588,7 @@ HELP and HELP KEYS commands for more information.
                                 self.rewrite_cursor = True
 
                         elif (mbstate &
-                              curses.BUTTON1_CLICKED) != 0:
+                              termlib.BUTTON1_CLICKED) != 0:
                             addr = (ypos * tns.maxcol) + xpos
                             if tns.selector_pen(addr, zti=self):
                                 self.rewrite_cursor = True
@@ -2653,7 +2622,7 @@ HELP and HELP KEYS commands for more information.
                         if session:
                             if keylock_aidbuf:
                                 keylock_aidbuf.clear()
-                                curses.beep()
+                                termlib.beep()
 
                             restore_readlines_pa2()
                             ati.ati.session = session
@@ -2668,7 +2637,7 @@ HELP and HELP KEYS commands for more information.
                             _logger.debug("KEY_MOUSE: %r",
                                           (mid, mpx, mpy, mpz, mbstate))
 
-                        curses.flash()
+                        termlib.flash()
 
                 elif cstr == "\x00":
                     pass  # Windows key? handled by Windows
@@ -2687,8 +2656,8 @@ HELP and HELP KEYS commands for more information.
                             bufsize = 9
 
                         if len(keylock_aidbuf) >= bufsize:  # if full
-                            curses.flash()  # signal user - full buff
-                            curses.beep()  # something happened
+                            termlib.flash()  # signal user - full buff
+                            termlib.beep()  # something happened
                         else:
                             keylock_aidbuf.append(aid_callable)
 
@@ -2722,10 +2691,10 @@ HELP and HELP KEYS commands for more information.
         if self.__cur_curs_vis != self.__prog_curs_vis:
             if self.__prog_curs_vis == 0:
                 self.stdscr.leaveok(True)
-                curses.curs_set(0)
+                termlib.curs_set(0)
             else:
                 self.stdscr.leaveok(False)
-                curses.curs_set(self.__prog_curs_vis)
+                termlib.curs_set(self.__prog_curs_vis)
 
             self.__cur_curs_vis = self.__prog_curs_vis
 
@@ -2771,10 +2740,9 @@ HELP and HELP KEYS commands for more information.
             ati.ati.session = session
 
     def __set_colors(self):
-        curses.start_color()
-        curses.use_default_colors()
-        colors = curses.COLORS
-        color_pairs = curses.COLOR_PAIRS
+        termlib.start_color()
+        colors = termlib.COLORS
+        color_pairs = termlib.COLOR_PAIRS
         self.colors = colors
         _logger.debug("colors = %d", colors)
         _logger.debug("color_pairs = %d", color_pairs)
@@ -2801,7 +2769,7 @@ HELP and HELP KEYS commands for more information.
         #   turquoise    345,   941,   941
         #   white       1000,  1000,  1000
         #
-        # curses defines the following:
+        # termlib defines the following:
         #   COLOR_BLACK
         #   COLOR_BLUE
         #   COLOR_CYAN
@@ -2811,7 +2779,7 @@ HELP and HELP KEYS commands for more information.
         #   COLOR_WHITE
         #   COLOR_YELLOW
         #
-        # approximate mapping from 3270 to curses:
+        # approximate mapping from 3270 to termlib:
         #   COLOR_BLACK     black
         #   COLOR_BLUE      blue
         #   COLOR_CYAN      turquoise
@@ -2846,14 +2814,14 @@ HELP and HELP KEYS commands for more information.
             white_rgb = (1000, 1000, 1000)
 
             color_start = 256
-            curses.init_color(color_start, *black_rgb)
-            curses.init_color(color_start + 1, *blue_rgb)
-            curses.init_color(color_start + 2, *red_rgb)
-            curses.init_color(color_start + 3, *pink_rgb)
-            curses.init_color(color_start + 4, *green_rgb)
-            curses.init_color(color_start + 5, *turquoise_rgb)
-            curses.init_color(color_start + 6, *yellow_rgb)
-            curses.init_color(color_start + 7, *white_rgb)
+            termlib.init_color(color_start, *black_rgb)
+            termlib.init_color(color_start + 1, *blue_rgb)
+            termlib.init_color(color_start + 2, *red_rgb)
+            termlib.init_color(color_start + 3, *pink_rgb)
+            termlib.init_color(color_start + 4, *green_rgb)
+            termlib.init_color(color_start + 5, *turquoise_rgb)
+            termlib.init_color(color_start + 6, *yellow_rgb)
+            termlib.init_color(color_start + 7, *white_rgb)
 
             cv2color = {0: color_start,  # default/black
                         241: color_start + 1,  # blue
@@ -2875,14 +2843,14 @@ HELP and HELP KEYS commands for more information.
                         247: 231,  # white
                         }
         else:
-            cv2color = {0: curses.COLOR_BLACK,  # default/black
-                        241: curses.COLOR_BLUE,  # blue
-                        242: curses.COLOR_RED,  # red
-                        243: curses.COLOR_MAGENTA,  # pink
-                        244: curses.COLOR_GREEN,  # green
-                        245: curses.COLOR_CYAN,  # turquoise
-                        246: curses.COLOR_YELLOW,  # yellow
-                        247: curses.COLOR_WHITE,  # white
+            cv2color = {0: termlib.COLOR_BLACK,  # default/black
+                        241: termlib.COLOR_BLUE,  # blue
+                        242: termlib.COLOR_RED,  # red
+                        243: termlib.COLOR_MAGENTA,  # pink
+                        244: termlib.COLOR_GREEN,  # green
+                        245: termlib.COLOR_CYAN,  # turquoise
+                        246: termlib.COLOR_YELLOW,  # yellow
+                        247: termlib.COLOR_WHITE,  # white
                         }
 
         color_pair = 0
@@ -2895,14 +2863,14 @@ HELP and HELP KEYS commands for more information.
                     continue
 
                 color_pair += 1
-                curses.init_pair(color_pair, fg_v, bg_v)
-                attr = curses.color_pair(color_pair)
+                termlib.init_pair(color_pair, fg_v, bg_v)
+                attr = termlib.color_pair(color_pair)
                 self.cv2attr[(fgid, bgid)] = attr
 
     def __shell_mode(self, init=False):
         """Set the TTY to shell mode.
 
-        When init==True, curses will
+        When init==True, termlib will
         be initialized if it is not
         yet initialized... and
         perform what is needed to
@@ -2920,15 +2888,15 @@ HELP and HELP KEYS commands for more information.
             elif self.__tty_mode == 0:
                 self.stdscr = None
             else:
-                curses.endwin()
+                termlib.endwin()
                 self.stdscr = None
 
             self.__prog_mode()
-            curses.endwin()
+            termlib.endwin()
             if self.__shell_mousemask is not None:
-                curses.mousemask(self.__shell_mousemask)
+                termlib.mousemask(self.__shell_mousemask)
 
-            curses.flushinp()
+            termlib.flushinp()
             self.__tty_mode = 0
             self.__cur_curs_vis = 1  # endwin set
             return
@@ -2939,7 +2907,7 @@ HELP and HELP KEYS commands for more information.
         self.__stdout.write("\x1b[?2004l")  # bracketed paste OFF
         self.__stdout.flush()
 
-        _, loop = ati.ati.get_asyncio_event_loop()
+        loop = ati.ati.get_asyncio_event_loop()[1]
         if self.__stdin_selected:
             self.__stdin_selected = False
             loop.remove_reader(self.__stdin)
@@ -2948,11 +2916,11 @@ HELP and HELP KEYS commands for more information.
             signum = self.__handling.pop()
             loop.remove_signal_handler(signum)
 
-        curses.endwin()
+        termlib.endwin()
         if self.__shell_mousemask is not None:
-            curses.mousemask(self.__shell_mousemask)
+            termlib.mousemask(self.__shell_mousemask)
 
-        curses.flushinp()
+        termlib.flushinp()
         self.__cur_curs_vis = 1  # endwin set
         self.__tty_mode = 0
 
@@ -3004,7 +2972,7 @@ HELP and HELP KEYS commands for more information.
                             k += win.getkey()
                             # TODO stop loop if char says so
 
-                except curses.error:
+                except termlib.error:
                     pass
 
                 if k is not None:
@@ -3046,7 +3014,7 @@ HELP and HELP KEYS commands for more information.
         text may be a string or bytes
         y is the zero-based row
         x is the zero-based column
-        attr is the curses attributes
+        attr is the termlib attributes
 
         When y and x are not specified, text is
         written at the current cursor position.
@@ -3058,7 +3026,7 @@ HELP and HELP KEYS commands for more information.
 
         if self.__cur_curs_vis != 0:
             self.stdscr.leaveok(True)
-            curses.curs_set(0)
+            termlib.curs_set(0)
             self.__cur_curs_vis = 0
 
         if len(argv) <= 2:
@@ -3111,16 +3079,6 @@ HELP and HELP KEYS commands for more information.
             if width > (cols - xpos):  # tail of string too long
                 epos = spos + (cols - xpos)  # shorten
 
-            insch = None
-            if ypos >= (rows - 1) and (xpos + width) >= (cols - 1):
-                # curses does not like use of bottom right
-                if epos is None:
-                    epos = len(instr) - 1
-                else:
-                    epos -= 1
-
-                insch = instr[epos:epos+1]  # bottom-right char
-
             if spos == 0 and (epos is None or epos == len(instr)):
                 if attr is None:
                     self.stdscr.addstr(ypos, xpos, instr)
@@ -3137,13 +3095,6 @@ HELP and HELP KEYS commands for more information.
                 self.stdscr.addstr(ypos, xpos, instr[spos:epos])
             else:
                 self.stdscr.addstr(ypos, xpos, instr[spos:epos], attr)
-
-            if insch:  # if skipped bottom-right char
-                # use insch to fill in bottom-right char
-                if attr is None:
-                    self.stdscr.insch(insch)
-                else:
-                    self.stdscr.insch(insch, attr)
 
     def __update_prompt(self):
         """Set prompt according to SESSION.
@@ -3168,7 +3119,7 @@ HELP and HELP KEYS commands for more information.
         if has_color:
             attr = self.cv2attr[(0, 0)]
         else:
-            attr = curses.A_NORMAL
+            attr = termlib.A_NORMAL
 
         for rsp, rep in tns.iterow(saddr, eaddr):
             absy = rsp // tns.maxcol
@@ -3243,7 +3194,7 @@ HELP and HELP KEYS commands for more information.
             if has_color:
                 attr = self.cv2attr[(0, 0)]
             else:
-                attr = curses.A_INVIS  # ?
+                attr = termlib.A_INVIS  # ?
 
             self.__tty_write(absy, gsx, blanks, attr)
             return
@@ -3285,16 +3236,16 @@ HELP and HELP KEYS commands for more information.
             pass
 
         elif aeh == 240:  # xF0 Normal
-            attr |= curses.A_NORMAL
+            attr |= termlib.A_NORMAL
 
         elif aeh == 241:  # xF1 Blink
-            attr |= curses.A_BLINK
+            attr |= termlib.A_BLINK
 
         elif aeh == 242:  # xF2 Reverse Video
-            attr |= curses.A_REVERSE
+            attr |= termlib.A_REVERSE
 
         elif aeh == 244:  # xF4 Underscore
-            attr |= curses.A_UNDERLINE
+            attr |= termlib.A_UNDERLINE
 
         if afg == 0:
             if f_intensified and not f_protected:
@@ -3544,18 +3495,18 @@ def create():
         return Zti._zti
 
     try:
-        Zti._stdscr = curses.initscr()
-    except curses.error:
+        Zti._stdscr = termlib.initscr()
+    except termlib.error:
         _logger.exception("initscr error")
         return None
 
     try:
-        curses.cbreak()
-    except curses.error:
+        termlib.cbreak()
+    except termlib.error:
         _logger.exception("cbreak error")
         return None
     finally:
-        curses.endwin()
+        termlib.endwin()
 
     return Zti()
 
