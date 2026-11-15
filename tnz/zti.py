@@ -55,9 +55,11 @@ if __name__ == "__main__":
 
 import atexit
 import cmd
+import concurrent.futures
 import logging
 import os
 import platform
+import queue
 import re
 import signal
 import sys
@@ -135,7 +137,12 @@ class Zti(cmd.Cmd):
         self.twin_end = None
         self.__loop = None
         self.__winch = False
-        self.__thread = None
+        self.__tstp = False  # SIGTSTP received, handle in __tty_read
+        self.__thread_ati = None
+        self.__queue_main = None  # requests for main thread
+        self.__queue_ati = None  # requests for ati thread
+        self.__future = None
+        self.__interrupted = False  # run() interrupted by KeyboardInterrupt
         self.__tty_mode = 0  # 0=shell, 1=prog
         self.__has_color = None
 
@@ -164,9 +171,9 @@ class Zti(cmd.Cmd):
         self.__sessel = []
 
         self.__stdin_selected = False
-        self.__handling = set()
+        self.__handling = {}
         if _osname == "Windows":
-            self.__signals = self.__handling
+            self.__signals = set()
         else:
             self.__signals = {signal.SIGWINCH, signal.SIGTSTP}
 
@@ -185,6 +192,14 @@ class Zti(cmd.Cmd):
     def cmdloop(self, intro=None):
         """Override cmd.Cmd.cmdloop to handle KeyboardInterrupt.
         """
+        if self.__thread_ati is threading.current_thread():
+            # The command loop must run in the main thread. The ati
+            # thread needs to be free to serve requests (such as the
+            # background wait and r2d2).
+            return self.__run_main(self.cmdloop, intro)
+
+        # Running in main thread
+
         self.__shell_mode()
         if self.cmdqueue:
             if intro is None:
@@ -196,20 +211,26 @@ class Zti(cmd.Cmd):
                 self.pend_intro = intro
                 intro = ""
 
-        while True:
-            try:
-                text = intro
-                intro = ""
-                super().cmdloop(intro=text)
-                return
+        started = self.__ati_thread_start()
+        try:
+            while True:
+                try:
+                    text = intro
+                    intro = ""
+                    super().cmdloop(intro=text)
+                    return
 
-            except KeyboardInterrupt:
-                self.__shell_mode()
-                print("\nKeyboardInterrupt")
+                except KeyboardInterrupt:
+                    self.__shell_mode()
+                    print("\nKeyboardInterrupt")
 
-            except BaseException:
-                self.postloop()
-                raise
+                except BaseException:
+                    self.postloop()
+                    raise
+        finally:
+            self.__bg_wait_end()
+            if started:
+                self.__ati_thread_stop()
 
     def complete_goto(self, text, line, begidx, endidx):
         textu = text.upper()
@@ -1127,7 +1148,6 @@ HELP KEYS commands for more information.
     def pause(self):
         """Pause script
         """
-        self.shell_mode()
         in_script = self.__in_script
         in_wait = self.__in_wait
         try:
@@ -1224,6 +1244,143 @@ HELP KEYS commands for more information.
 
         except Exception:
             print("<stack trace unavailable>")
+
+    def run(self, fn, *args, **kwargs):
+        """Run fn(*args, **kwargs) in a new thread and wait for it.
+
+        The thread may request that functions be run in the main
+        thread through self.__queue_main (see __run_main).
+        Returns the result of fn or raises its exception.
+
+        When KeyboardInterrupt is raised in the main thread while
+        waiting, the event loop is stopped so that fn is not left
+        waiting on a session. fn then sees KeyboardInterrupt the
+        next time it waits on the event loop. A fn that is not
+        waiting on the event loop (for example, time.sleep) is not
+        interrupted.
+        """
+        started = self.__ati_thread_start()
+        self.__interrupted = False
+
+        def call():
+            try:
+                return fn(*args, **kwargs)
+
+            except RuntimeError:
+                if self.__interrupted:  # event loop stopped by interrupt
+                    raise KeyboardInterrupt from None
+
+                raise
+
+        try:
+            return self.__run_ati(call)
+
+        except KeyboardInterrupt:
+            if self.__thread_ati is not threading.current_thread():
+                self.__interrupted = True
+                _, loop = ati.ati.get_asyncio_event_loop()
+                loop.call_soon_threadsafe(loop.stop)
+
+            raise
+
+        finally:
+            if started:
+                self.__ati_thread_stop()
+
+    def __ati_thread_start(self):
+        """Ensure the ati thread is running and serving __queue_ati.
+
+        Returns True if this call started the thread, in which
+        case the caller must call __ati_thread_stop when done.
+        """
+        if self.__thread_ati:
+            return False  # already running
+
+        self.__queue_main = queue.Queue()
+        self.__queue_ati = queue.Queue()
+        self.__thread_ati = threading.Thread(
+            target=self.__serve, args=(self.__queue_ati,))
+        self.__thread_ati.start()
+        return True
+
+    def __ati_thread_stop(self):
+        if thread := self.__thread_ati:
+            self.__thread_ati = None
+            self.__queue_ati.put(None)  # end the thread
+            thread.join()
+            self.__queue_main = None
+            self.__queue_ati = None
+
+    def __serve(self, request_queue, done=None):
+        """Run requested functions from request_queue until told to stop.
+
+        Each request is a (future, fn, args, kwargs) tuple. The
+        outcome of fn is stored in the future. Stops when None is
+        queued, or when the done future is queued. A Future other
+        than done (left over from an abandoned wait) is ignored.
+        """
+        while True:
+            if (request := request_queue.get()) is None:
+                return
+
+            if isinstance(request, concurrent.futures.Future):
+                if request is done:
+                    return
+
+                continue
+
+            future, fn, args, kwargs = request
+            if not future.set_running_or_notify_cancel():
+                continue
+
+            try:
+                future.set_result(fn(*args, **kwargs))
+            except BaseException as exc:
+                future.set_exception(exc)
+
+    def __request(self, to_queue, from_queue, fn, args, kwargs):
+        """Queue fn to to_queue and wait for it to complete.
+
+        While waiting, functions requested through from_queue
+        are run by the calling thread.
+        """
+        future = concurrent.futures.Future()
+        future.add_done_callback(from_queue.put)  # wake up when done
+        to_queue.put((future, fn, args, kwargs))
+        self.__serve(from_queue, future)  # until future is done
+        return future.result()
+
+    def __run_main(self, fn, *args, **kwargs):
+        """Run fn(*args, **kwargs) in the main thread.
+
+        Called by the ati thread (the thread started by run). The
+        request is added to self.__queue_main, which is served by run (or
+        by __run_ati). Waits for fn to complete, running any
+        functions requested by the main thread in the meantime.
+        """
+        if self.__thread_ati is threading.current_thread():
+            return self.__request(
+                self.__queue_main, self.__queue_ati, fn, args, kwargs)
+
+        # no ati thread, or already in the main thread
+        return fn(*args, **kwargs)
+
+    def __run_ati(self, fn, *args, **kwargs):
+        """Run fn(*args, **kwargs) in the ati thread.
+
+        Called by the main thread. The request is added to the ati
+        thread queue, which is served by __run_main. Waits for fn
+        to complete, running any functions requested through
+        self.__queue_main in the meantime.
+        """
+        if self.__thread_ati:
+            if self.__thread_ati is not threading.current_thread():
+                self.__bg_wait_end()
+                return self.__request(
+                    self.__queue_ati, self.__queue_main, fn, args, kwargs)
+
+        # no ati thread, or already in the ati thread
+        return fn(*args, **kwargs)
 
     def shell_mode(self):
         self.__shell_mode()
@@ -1406,16 +1563,15 @@ HELP and HELP KEYS commands for more information.
            sessions alive while at
            the command prompt.
         """
-        if self.__thread:
+        if self.__future:
             return  # already running
 
         if not ati.ati.sessions:
             return  # no sessions
 
         loop = ati.ati.get_asyncio_event_loop()[1]
-        thread = threading.Thread(target=loop.run_forever)
-        self.__thread = thread
-        thread.start()
+        future = self.__future = concurrent.futures.Future()
+        self.__queue_ati.put((future, loop.run_forever, (), {}))
 
     def __bg_wait_end(self):
         """Ensure the background
@@ -1427,14 +1583,13 @@ HELP and HELP KEYS commands for more information.
            so that application
            can shut down.
         """
-        thread = self.__thread
-        if not thread:
+        if not (future := self.__future):
             return  # not running
 
         loop = ati.ati.get_asyncio_event_loop()[1]
         loop.call_soon_threadsafe(loop.stop)
-        thread.join()
-        self.__thread = None
+        future.result()
+        self.__future = None
 
     def __clean_range(self, start, end):
         """See __dirty_range.
@@ -1884,8 +2039,7 @@ HELP and HELP KEYS commands for more information.
                 self.stdscr = termlib.initscr()
                 Zti._stdscr = self.stdscr
 
-                termlib.cbreak()
-                termlib.noecho()
+                termlib.cbreak_raw()
                 termlib.def_prog_mode()
                 termlib.endwin()
 
@@ -1926,19 +2080,20 @@ HELP and HELP KEYS commands for more information.
 
         signals = self.__signals
         if signals:
-            new_hand = self.__signal_handler
-            event, loop = ati.ati.get_asyncio_event_loop()
-            set_handler = loop.add_signal_handler
-            getsignal = signal.getsignal
-            special_handlers = set(signal.Handlers)
-            for signum in signals:
-                old_hand = getsignal(signum)
-                if old_hand not in special_handlers:
-                    _logger.warning("%r -> %r", signum, old_hand)
+            def signal_setup():
+                new_hand = self.__signal_handler
+                getsignal = signal.getsignal
+                special_handlers = set(signal.Handlers)
+                for signum in signals:
+                    old_hand = getsignal(signum)
+                    if old_hand not in special_handlers:
+                        _logger.warning("%r -> %r", signum, old_hand)
 
-                else:
-                    set_handler(signum, new_hand, signum, event.set)
-                    self.__handling.add(signum)
+                    else:
+                        self.__handling[signum] = old_hand
+                        signal.signal(signum, new_hand)
+
+            self.__run_main(signal_setup)
 
         self.rewrite = True
         self.__tty_mode = 1
@@ -1948,6 +2103,10 @@ HELP and HELP KEYS commands for more information.
         """
         # See https://en.wikipedia.org/wiki/Table_of_keyboard_shortcuts
         # when assigning keyboard shortcuts.
+
+        if self.__thread_ati:
+            if self.__thread_ati is not threading.current_thread():
+                return self.__run_ati(self.__r2d2, win, waitc, timeout)
 
         show = (waitc != _WAIT_GOTO)
         if waitc == _WAIT_NONE:
@@ -2877,6 +3036,7 @@ HELP and HELP KEYS commands for more information.
         get the current terminal
         size recognized.
         """
+        self.__tstp = False  # no longer in prog mode, nothing to suspend
         if init:
             # need to make sure that
             # terminal size is refreshed
@@ -2912,9 +3072,12 @@ HELP and HELP KEYS commands for more information.
             self.__stdin_selected = False
             loop.remove_reader(self.__stdin)
 
-        while len(self.__handling) > 0:
-            signum = self.__handling.pop()
-            loop.remove_signal_handler(signum)
+        if self.__handling:
+            def signal_cleanup():
+                while self.__handling:
+                    signal.signal(*self.__handling.popitem())
+
+            self.__run_main(signal_cleanup)
 
         termlib.endwin()
         if self.__shell_mousemask is not None:
@@ -2929,14 +3092,17 @@ HELP and HELP KEYS commands for more information.
         # following flush.
         self.__stdout.flush()
 
-    def __signal_handler(self, signum, callback):
+    def __signal_handler(self, signum, frame):
+        # Runs in the main thread, but the event loop and the terminal
+        # belong to the ati thread. Only record the signal and wake
+        # the loop. __tty_read does the rest.
         if signum == signal.SIGTSTP:
-            self.__shell_mode()
-            os.kill(os.getpid(), signal.SIGSTOP)
-            self.__prog_mode()
+            self.__tstp = True
 
         self.__winch = True
-        callback()
+        event, loop = ati.ati.get_asyncio_event_loop()
+        if loop and event:
+            loop.call_soon_threadsafe(event.set)
 
     def __tty_read(self, win, timeout, refresh=None):
         """Read from tty
@@ -2980,6 +3146,13 @@ HELP and HELP KEYS commands for more information.
 
                 if other_selected:
                     # must be for signal
+                    if self.__tstp:
+                        self.__tstp = False
+                        self.__shell_mode()
+                        os.kill(os.getpid(), signal.SIGSTOP)
+                        self.__prog_mode()
+                        return "KEY_RESIZE"  # redraw, refresh size
+
                     if self.__winch:
                         return "KEY_RESIZE"
 
@@ -3022,8 +3195,6 @@ HELP and HELP KEYS commands for more information.
         When attr is not specified, text is written
         with the current attributes.
         """
-        self.__prog_mode()
-
         if self.__cur_curs_vis != 0:
             self.stdscr.leaveok(True)
             termlib.curs_set(0)
@@ -3501,9 +3672,9 @@ def create():
         return None
 
     try:
-        termlib.cbreak()
+        termlib.cbreak_raw()
     except termlib.error:
-        _logger.exception("cbreak error")
+        _logger.exception("cbreak_raw error")
         return None
     finally:
         termlib.endwin()
@@ -3576,6 +3747,18 @@ Use the HELP and HELP KEYS commands for more information.
         intro = f"{intro}No plugins installed.\n"
 
     zti.cmdloop(intro)
+
+
+def run(fn, *args, **kwargs):
+    """Run fn(*args, **kwargs) in a thread with a zti instance.
+
+    When a zti instance cannot be created, fn is called directly.
+    Returns the result of fn or raises its exception.
+    """
+    if z := create():
+        return z.run(fn, *args, **kwargs)
+
+    return fn(*args, **kwargs)
 
 
 # Private data

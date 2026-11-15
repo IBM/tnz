@@ -28,3 +28,12 @@ try:
 
 except ImportError:
     __version__ = None
+
+
+def run(fn, *args, **kwargs):
+    """Run fn(*args, **kwargs) in a thread with a zti instance.
+
+    Returns the result of fn or raises its exception.
+    """
+    from . import zti
+    return zti.run(fn, *args, **kwargs)
